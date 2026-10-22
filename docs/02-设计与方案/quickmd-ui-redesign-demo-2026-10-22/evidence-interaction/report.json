@@ -1,0 +1,173 @@
+[
+  {
+    "file": "motion-勾选第二项-end.jpg",
+    "state": null,
+    "size": "330x285",
+    "zoom": 1,
+    "group": "勾选第二项",
+    "issues": [],
+    "frames": {
+      "start": {
+        "file": "motion-勾选第二项-start.jpg",
+        "source": "Page.captureScreenshot",
+        "timeMs": 562
+      },
+      "mid": {
+        "file": "motion-勾选第二项-mid.jpg",
+        "source": "Page.screencastFrame",
+        "timeMs": 642
+      },
+      "end": {
+        "file": "motion-勾选第二项-end.jpg",
+        "source": "Page.captureScreenshot",
+        "timeMs": 1190
+      }
+    },
+    "sampling": {
+      "mode": "action",
+      "step": 1,
+      "action": "click",
+      "raw": "click '.qn-box >> nth=1'"
+    },
+    "durationMs": 1190,
+    "sequence": {
+      "file": "motion-勾选第二项-sequence.png",
+      "width": 1416,
+      "height": 698,
+      "columns": 4,
+      "items": [
+        {
+          "naturalWidth": 330,
+          "naturalHeight": 285,
+          "width": 330,
+          "height": 285,
+          "labelHeight": 32,
+          "x": 24,
+          "y": 24,
+          "label": "0.000 s",
+          "labelY": 317
+        },
+        {
+          "naturalWidth": 330,
+          "naturalHeight": 285,
+          "width": 330,
+          "height": 285,
+          "labelHeight": 32,
+          "x": 370,
+          "y": 24,
+          "label": "0.170 s",
+          "labelY": 317
+        },
+        {
+          "naturalWidth": 330,
+          "naturalHeight": 285,
+          "width": 330,
+          "height": 285,
+          "labelHeight": 32,
+          "x": 716,
+          "y": 24,
+          "label": "0.340 s",
+          "labelY": 317
+        },
+        {
+          "naturalWidth": 330,
+          "naturalHeight": 285,
+          "width": 330,
+          "height": 285,
+          "labelHeight": 32,
+          "x": 1062,
+          "y": 24,
+          "label": "0.510 s",
+          "labelY": 317
+        },
+        {
+          "naturalWidth": 330,
+          "naturalHeight": 285,
+          "width": 330,
+          "height": 285,
+          "labelHeight": 32,
+          "x": 24,
+          "y": 357,
+          "label": "0.680 s",
+          "labelY": 650
+        },
+        {
+          "naturalWidth": 330,
+          "naturalHeight": 285,
+          "width": 330,
+          "height": 285,
+          "labelHeight": 32,
+          "x": 370,
+          "y": 357,
+          "label": "0.850 s",
+          "labelY": 650
+        },
+        {
+          "naturalWidth": 330,
+          "naturalHeight": 285,
+          "width": 330,
+          "height": 285,
+          "labelHeight": 32,
+          "x": 716,
+          "y": 357,
+          "label": "1.020 s",
+          "labelY": 650
+        },
+        {
+          "naturalWidth": 330,
+          "naturalHeight": 285,
+          "width": 330,
+          "height": 285,
+          "labelHeight": 32,
+          "x": 1062,
+          "y": 357,
+          "label": "1.190 s",
+          "labelY": 650
+        }
+      ],
+      "frames": [
+        {
+          "timeMs": 0,
+          "sourceTimeMs": 0
+        },
+        {
+          "timeMs": 170,
+          "sourceTimeMs": 0
+        },
+        {
+          "timeMs": 340,
+          "sourceTimeMs": 0
+        },
+        {
+          "timeMs": 510,
+          "sourceTimeMs": 0
+        },
+        {
+          "timeMs": 680,
+          "sourceTimeMs": 676
+        },
+        {
+          "timeMs": 850,
+          "sourceTimeMs": 743
+        },
+        {
+          "timeMs": 1020,
+          "sourceTimeMs": 743
+        },
+        {
+          "timeMs": 1190,
+          "sourceTimeMs": 1190
+        }
+      ]
+    },
+    "consistency": {
+      "status": "matched",
+      "reference": "motion-勾选第二项-end.jpg",
+      "different": false,
+      "changedPixels": 0,
+      "maxTilePixels": 0,
+      "pixelRatio": 0
+    },
+    "failed": true
+  }
+]

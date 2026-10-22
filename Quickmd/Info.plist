@@ -14,6 +14,9 @@
     <string>1</string>
     <key>CFBundleShortVersionString</key>
     <string>0.1</string>
+    <!-- 应用图标：build.sh 会把 assets/icons/Quickmd.icns 拷成 Contents/Resources/AppIcon.icns -->
+    <key>CFBundleIconFile</key>
+    <string>AppIcon.icns</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSUIElement</key>

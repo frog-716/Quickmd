@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f6f1">
+  <title>Quickmd · 浅色界面重构</title>
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <div id="qn-app" class="is-entering">
+    <header class="qn-head">
+      <span class="qn-file-mark" aria-hidden="true">
+        <svg viewBox="0 0 16 18" fill="none">
+          <path d="M3 1.75h6.2L13 5.6v10.65H3z" />
+          <path d="M9 1.9v4h3.8M5.3 9h5.4M5.3 12h5.4" />
+        </svg>
+      </span>
+      <span id="qn-file">scratch.md</span>
+      <button id="qn-open-file" class="qn-open-file" type="button" aria-label="打开 Markdown 文件">
+        <svg viewBox="0 0 18 16" fill="none" aria-hidden="true">
+          <path d="M1.5 3.25h5l1.6 1.6h8.4v8.9h-15z" />
+          <path d="M1.5 5.1h15" />
+        </svg>
+        <span>打开</span>
+      </button>
+    </header>
+
+    <div id="qn-scroll">
+      <div id="qn-editor" aria-label="Markdown 编辑区"></div>
+    </div>
+
+    <footer id="qn-status">
+      <span class="qn-dot" aria-hidden="true"></span>
+      <span id="qn-savestate">就绪</span>
+      <span class="qn-status-divider" aria-hidden="true">·</span>
+      <span id="qn-count">0 字</span>
+    </footer>
+  </div>
+
+  <input id="qn-file-picker" type="file" accept=".md,text/markdown,text/plain" hidden>
+  <script src="demo.js"></script>
+  <script src="../../../Quickmd/Sources/Quickmd/Resources/editor-core.js"></script>
+  <script src="../../../Quickmd/Sources/Quickmd/Resources/editor.js"></script>
+</body>
+</html>
