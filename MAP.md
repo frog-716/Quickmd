@@ -10,15 +10,17 @@ Quick-md/                        # 仓库根
 ├── README.md                    # 项目门面：定位 / 速查表 / 开机自启 / 已知边界
 ├── MAP.md                       # 本文件
 ├── docs/                        # 01 调研 · 02 设计 · 03 使用与实现 · 04 需求对齐
+├── assets/icons/                # 三款候选图标（PNG + .icns），ICON=1/2/3 切换
+├── tools/                       # 图标生成脚本（CoreGraphics 绘制，可复现）
 ├── memory/项目历史决策.md        # 从第一天起的决策链与踩坑（为什么这么做）
 └── Quickmd/                     # SwiftPM 包（App 源码，无 Xcode 工程）
     ├── Package.swift            # 平台 macOS 14+ / 资源声明（零第三方依赖）
-    ├── build.sh                 # swift build release --disable-sandbox + 打包 .app
+    ├── build.sh                 # swift build release --disable-sandbox + 打包 .app + 装图标
     ├── Sources/Quickmd/
     │   ├── main.swift           # 入口：起 NSApplication + AppDelegate
-    │   ├── AppDelegate.swift    # 组装与生命周期、面板两态、诊断开关
+    │   ├── AppDelegate.swift    # 组装与生命周期、面板两态、诊断开关、截图自检
     │   ├── NotchPanel.swift     # 面板：canBecomeKey 可切换（预览态/激活态）
-    │   ├── PanelContainerView.swift # 圆角容器 + 点击激活
+    │   ├── PanelContainerView.swift # 圆角容器 + 柔和投影 + 点击激活
     │   ├── EditorWebView.swift  # 内嵌编辑器：把点击转成激活
     │   ├── NotchTrigger.swift   # 刘海几何 + 30Hz 轮询 + 停留区判定
     │   ├── DocumentStore.swift  # 当前文档读写（原子写）
@@ -29,8 +31,8 @@ Quick-md/                        # 仓库根
     │       ├── editor-core.js   # 纯函数内核（esc/inline/parse/renderBlock），Node 可测
     │       ├── editor.js         # 浏览器层：DOM 序列化 / 块操作 / 事件 / 保存
     │       ├── editor.html       # 界面骨架（v3 起无工具栏）
-    │       └── editor.css        # 样式，深浅色自动适配
-    └── Tests/editor-core.test.js# 67 项 Node 单测（只测纯函数层）
+    │       └── editor.css        # 样式：备忘录风暖纸面，深浅色自动适配
+    └── Tests/editor-core.test.js# 79 项 Node 单测（只测纯函数层）
 ```
 
 ## 三条主链路
@@ -77,15 +79,21 @@ Quick-md/                        # 仓库根
 | 低 | AppDelegate ↔ WKWebView 引用环 | ✅ 已修 |
 | 低 | 双防抖冗余 | ✅ 已修 |
 | 低 | 测试文件末尾 6 行写在 `process.exit` 之后永不执行 | ✅ 已修并补了 12 项新用例 |
-| 低 | 有序列表回车续项恒为 `1.` | 已知边界，暂不改 |
+| 低 | 有序列表回车续项恒为 `1.` | ✅ 已修（Typora 式续号：回车接上一个数，`3.` 开头就 3/4/5；空项回车退出列表） |
 | 低 | 首次启动不生成演示便签（README 曾误称会生成） | ✅ 文档已更正 |
+| 中 | 刘海热区向下多延伸 46pt，离刘海一段距离就误触发 | ✅ v3 收紧为刘海本体（实测 179×36pt）+ 4pt 容差 |
+| 中 | UI 质感偏「工具感」，不像备忘录 | ✅ v3 重做 CSS：暖纸面 / 大标题层级 / 宽松行距 / 发丝线 / 柔和投影 |
+| 低 | 有序↔无序互转会把序号全刷成 `1.` | ✅ 已修（按层级编号，`toOrdered`/`toBullet`） |
+| 低 | 多行列表整体降级只去第一行标记 | ✅ 已修（`stripMarkers` 逐行去 + 任务标记连续剥两层） |
 
 ## 运行
 
 ```bash
 cd Quickmd && ./build.sh && open Quickmd.app        # 构建 + 运行
-node Tests/editor-core.test.js                      # 单测（67 项）
+ICON=2 ./build.sh                                   # 换图标（1 终端绿 / 2 蓝图靛蓝 / 3 像素琥珀）
+node Tests/editor-core.test.js                      # 单测（79 项）
 QUICKMD_DEBUG=1 ./Quickmd.app/Contents/MacOS/Quickmd --mdtest|--domtest|--clicktest|--blockcount|--logintest|--show-now
+./Quickmd.app/Contents/MacOS/Quickmd --shot|--dark-shot   # 面板截图（UI 观感自检）
 ```
 
 日志：`~/Documents/Quickmd/quickmd.log`
@@ -94,5 +102,6 @@ QUICKMD_DEBUG=1 ./Quickmd.app/Contents/MacOS/Quickmd --mdtest|--domtest|--clickt
 
 - 想了解「为什么这么设计」→ `memory/项目历史决策.md`
 - 想了解编辑器完整规格（格式/快捷键/行为规则/安全规范）→ `docs/03-使用与实现/Q便签-v2-Markdown编辑器-实现说明.md`
+- 想逐条手动验收功能 → `docs/03-使用与实现/v3-手动测试清单.md`
 - 想看 v3 的需求对齐与决策记录 → `docs/04-需求对齐/v3-需求对齐清单.md`
 - 想加新块类型（表格/图片等）→ 按 `parse → renderBlock → blockMD` 三处对称扩展，并补 Node 单测

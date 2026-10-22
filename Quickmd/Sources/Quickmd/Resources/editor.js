@@ -162,6 +162,9 @@
   function serializeList(listEl, depth) {
     var lines = [];
     var ordered = listEl.tagName.toLowerCase() === 'ol';
+    // 有序列表的起始序号：<ol start="3"> 表示 3. 4. 5.，序列化时必须保号，
+    // 否则「3. 起」保存出去就变成了「1. 起」，下次打开就丢了用户写的序号。
+    var startNum = ordered ? (parseInt(listEl.getAttribute('start') || '1', 10) || 1) : 1;
     var lis = listEl.children;
     var pad = new Array(depth + 1).join('  ');
     for (var i = 0; i < lis.length; i++) {
@@ -179,7 +182,7 @@
         }
         body += serializeNode(n);
       }
-      var prefix = (ordered ? (i + 1) + '. ' : '- ');
+      var prefix = (ordered ? (startNum + i) + '. ' : '- ');
       if (isTask) {
         var box = li.querySelector('.qn-box');
         prefix += (box && box.classList.contains('on') ? '[x] ' : '[ ] ');
@@ -339,9 +342,9 @@
       restoreCaret(el, off == null ? 0 : off - m[0].length);
       return true;
     }
-    // 有序列表
-    if ((m = text.match(/^\d+\.\s/))) {
-      renderInto(el, 'ol', '1. ' + text.replace(/^\d+\.\s+/, ''));
+    // 有序列表：保留用户写下的序号（Typora 行为：写 "3. " 就是 3、4、5）
+    if ((m = text.match(/^(\d+)\.\s/))) {
+      renderInto(el, 'ol', m[1] + '. ' + text.replace(/^\d+\.\s+/, ''));
       restoreCaret(el, off == null ? 0 : off - m[0].length);
       return true;
     }
@@ -370,6 +373,99 @@
 
   /* ---------- Enter：拆分块 / 续列表 ---------- */
 
+  // 列表项的纯文本（去掉勾选框和嵌套列表）
+  function listItemText(li) {
+    var out = '';
+    for (var i = 0; i < li.childNodes.length; i++) {
+      var n = li.childNodes[i];
+      if (n.nodeType === 1) {
+        var t = n.tagName.toLowerCase();
+        if (t === 'ul' || t === 'ol') continue;                       // 嵌套列表不算本项内容
+        if (n.classList && n.classList.contains('qn-box')) continue;  // 勾选框不算
+      }
+      out += serializeNode(n);
+    }
+    return out;
+  }
+
+  // li 里最后一个「非嵌套列表」的节点，用来确定行尾边界
+  function lastInlineNode(li) {
+    for (var i = li.childNodes.length - 1; i >= 0; i--) {
+      var n = li.childNodes[i];
+      if (n.nodeType === 1) {
+        var t = n.tagName.toLowerCase();
+        if (t === 'ul' || t === 'ol') continue;
+      }
+      return n;
+    }
+    return null;
+  }
+
+  // 退出列表：空项上回车 -> 删掉该项；若列表空了则整块退回段落
+  function exitList(el, li, list) {
+    var isLast = (li === list.lastElementChild);
+    var prev = li.previousElementSibling;
+    list.removeChild(li);
+    if (!list.children.length) {          // 列表空了 -> 这一块变成普通段落
+      renderInto(el, 'p', '');
+      focusBlock(el);
+      return;
+    }
+    if (isLast) {                        // 末项回车 -> 列表后面接一个新段落
+      var p = createBlockEl('p', '');
+      el.parentNode.insertBefore(p, el.nextSibling);
+      focusBlock(p);
+    } else {                             // 中间项 -> 直接删掉，光标回到前一项
+      focusBlock(el);
+      if (prev) setCaretAtOffset(prev, 0);
+    }
+  }
+
+  // 列表里回车：在同一个 <ul>/<ol> 内插入新项，不拆块。
+  // 有序列表的序号交给浏览器自动续（配合 <ol start> 保住起始序号），
+  // 这就是 Typora 的行为：写 1. 回车变 2.、3.
+  function handleListEnter(e, el, sel) {
+    var li = closestLi(e.target);
+    if (!li) return;
+    var list = li.parentNode;
+    if (!list || (list.tagName.toLowerCase() !== 'ul' && list.tagName.toLowerCase() !== 'ol')) return;
+    var isTask = !!(li.classList && li.classList.contains('qn-task'));
+
+    if (listItemText(li).trim() === '') {   // 空项 -> 退出列表
+      exitList(el, li, list);
+      return;
+    }
+
+    var r = sel.getRangeAt(0);
+    var last = lastInlineNode(li);
+    if (!last) { exitList(el, li, list); return; }
+
+    // 取出光标之后的文字，交给新的一项
+    var after = r.cloneRange();
+    after.setStart(r.endContainer, r.endOffset);
+    after.setEndAfter(last);
+    var frag = after.extractContents();
+
+    var newLi = document.createElement('li');
+    if (isTask) {
+      newLi.className = 'qn-task';
+      var box = document.createElement('span');
+      box.className = 'qn-box';
+      box.setAttribute('contenteditable', 'false');
+      var span = document.createElement('span');
+      span.appendChild(frag);
+      newLi.appendChild(box);
+      newLi.appendChild(span);
+    } else {
+      newLi.appendChild(frag);
+    }
+    list.insertBefore(newLi, li.nextSibling);
+
+    focusBlock(el);
+    var target = isTask ? newLi.querySelector('span:last-child') : newLi;
+    setCaretAtOffset(target, 0);
+  }
+
   function handleEnter(e) {
     var el = blockOf(e.target);
     if (!el) return;
@@ -379,6 +475,13 @@
     e.preventDefault();
     var sel = window.getSelection();
     if (!sel.rangeCount) return;
+
+    if (type === 'ul' || type === 'ol') {        // 列表走专用逻辑
+      handleListEnter(e, el, sel);
+      scheduleSave();
+      return;
+    }
+
     var r = sel.getRangeAt(0);
     var after = r.cloneRange();
     after.selectNodeContents(el);
@@ -390,20 +493,7 @@
     var headMD = blockMD(el);
 
     var newType = 'p', newMD = tail;
-    if (type === 'ul' || type === 'ol') {
-      var onlyEmpty = el.children.length === 1 && serializeNode(el).trim() === '';
-      if (onlyEmpty) {                       // 空列表项回车 -> 退出列表
-        renderInto(el, 'p', '');
-        focusBlock(el);
-        scheduleSave();
-        return;
-      }
-      newType = type;
-      // 任务列表回车续项时保持任务标记（未完成态）
-      var li = closestLi(e.target);
-      var isTask = !!(li && li.classList && li.classList.contains('qn-task'));
-      newMD = (isTask ? '- [ ] ' : (type === 'ol' ? '1. ' : '- ')) + tail;
-    } else if (type === 'quote') {
+    if (type === 'quote') {
       if (tail.trim() === '') { newType = 'p'; newMD = ''; }
       else { newType = 'quote'; newMD = '> ' + tail; }
     }
@@ -540,10 +630,9 @@
     if (type === 'ul' || type === 'ol') {
       var marker = type === 'ol' ? '1. ' : '- ';
       if (cur === 'ul' || cur === 'ol') {
-        // 有序 <-> 无序互转：保留内容与缩进层级
-        md = blockMD(el).split('\n').map(function (l) {
-          return l.replace(/^(\s*)(?:[-*+]|\d+\.)\s+/, '$1' + marker);
-        }).join('\n');
+        // 有序 <-> 无序互转：保留内容与缩进层级，编号按层级重新排
+        var raw = blockMD(el);
+        md = (type === 'ol') ? QN_CORE.toOrdered(raw) : QN_CORE.toBullet(raw);
       } else {
         md = serializeNode(el).split('\n').map(function (l) { return marker + l; }).join('\n');
       }
@@ -564,6 +653,10 @@
 
   function toggleTask(box) {
     box.classList.toggle('on');
+    // 已完成的项整行变淡。用 JS 加 class，而不是 CSS :has()——
+    // 后者在老版本 WebKit 上不一定认。
+    var li = box.closest ? box.closest('li.qn-task') : null;
+    if (li) li.classList.toggle('qn-done', box.classList.contains('on'));
     scheduleSave();
     flush();
   }

@@ -53,13 +53,21 @@ final class NotchTrigger {
 
     func notchCenterX(for screen: NSScreen) -> CGFloat { screen.frame.midX }
 
-    /// 刘海热区：刘海本体 + 左右各 10pt 余量 + 往下延伸 40pt。
-    /// 往下延伸是为了让「鼠标从上方快速划入」的路径也能命中。
+    /// 刘海热区：**只认「鼠标已经碰到刘海」的那一条带子**。
+    ///
+    /// v2 的热区向下延伸了 40pt（正好盖到面板顶部会出现的位置），
+    /// 结果鼠标离刘海还有一段距离面板就弹出来，误触率高。
+    /// v3 收紧为：刘海本体高度（safeAreaInsets.top）+ 4pt 容差，
+    /// 横向为刘海宽度 + 4pt。鼠标必须真的触到刘海区域才会唤出面板。
+    ///
+    /// 面板顶边正好落在刘海下沿，与本热区有 4pt 重叠，
+    /// 因此鼠标从刘海滑进面板时不会「离开热区」导致面板抖动收起。
     func hotZone(of screen: NSScreen, notchWidth w: CGFloat) -> NSRect {
-        NSRect(x: notchCenterX(for: screen) - w / 2 - 10,
-               y: screen.frame.maxY - screen.safeAreaInsets.top - 40,
-               width: w + 20,
-               height: screen.safeAreaInsets.top + 48)
+        let notchBottom = screen.frame.maxY - screen.safeAreaInsets.top
+        return NSRect(x: notchCenterX(for: screen) - w / 2 - 4,
+                      y: notchBottom - 4,
+                      width: w + 8,
+                      height: screen.safeAreaInsets.top + 4)
     }
 
     /// 停留区：面板矩形（含 10pt 余量）+ 刘海热区。

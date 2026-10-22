@@ -1,29 +1,40 @@
-/* Quickmd Markdown 编辑器样式
- * 目标观感：飞书云文档式 —— 干净排版、克制工具栏、 generous 行距、单栏所见即所得。
- * 配色跟随系统（prefers-color-scheme），容器底色由 AppKit 提供，body 透明。
+/* Quickmd 编辑器样式
+ * ---------------------------------------------------------------------------
+ * 视觉参考：macOS 备忘录（Notes.app）
+ *   - 暖白纸面（不是纯白），在刘海这种「浮在桌面上的小卡片」里更耐看
+ *   - 标题字号拉大、字重分明，正文行高宽松，一眼能分清层级
+ *   - 分隔用发丝线而不是重边框，整体克制
+ *   - 底部状态栏是一条半透明细条，像备忘录底部的工具条
+ * 配色跟随系统（prefers-color-scheme），容器圆角与阴影由 AppKit 提供。
  */
 
 :root {
-  --qn-fg: #1f2329;
-  --qn-fg-2: #646a73;
-  --qn-fg-3: #8f959e;
-  --qn-accent: #3370ff;
-  --qn-border: #dee0e3;
-  --qn-hover: #eff0f1;
-  --qn-code-bg: #f5f6f7;
-  --qn-quote-bar: #d0d3d9;
+  --qn-bg: #faf9f6;            /* 纸面 */
+  --qn-fg: #2b2926;            /* 正文 */
+  --qn-fg-2: #6f6a63;          /* 次要文字 */
+  --qn-fg-3: #a19a90;          /* 占位符 / 弱化 */
+  --qn-accent: #0a7cff;        /* 强调 / 光标 */
+  --qn-border: #e6e2da;        /* 发丝线 */
+  --qn-border-soft: #efebe4;
+  --qn-code-bg: #f2efe8;
+  --qn-quote-bar: #d6d0c4;
+  --qn-sel: rgba(10, 124, 255, .18);
+  --qn-shadow: rgba(0, 0, 0, .06);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --qn-fg: #e8e9eb;
-    --qn-fg-2: #a9adb4;
-    --qn-fg-3: #7d828a;
-    --qn-accent: #4c88ff;
-    --qn-border: #3a3d42;
-    --qn-hover: #2f3236;
-    --qn-code-bg: #26282c;
-    --qn-quote-bar: #4a4d52;
+    --qn-bg: #1c1b19;
+    --qn-fg: #ede9e2;
+    --qn-fg-2: #a8a199;
+    --qn-fg-3: #746e66;
+    --qn-accent: #3b9eff;
+    --qn-border: #34322e;
+    --qn-border-soft: #292824;
+    --qn-code-bg: #26241f;
+    --qn-quote-bar: #4a463f;
+    --qn-sel: rgba(59, 158, 255, .28);
+    --qn-shadow: rgba(0, 0, 0, .4);
   }
 }
 
@@ -37,31 +48,23 @@ html, body {
 }
 
 body {
-  font: 15px/1.75 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+  font: 14px/1.72 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
         "Helvetica Neue", "Segoe UI", sans-serif;
   color: var(--qn-fg);
-  background: transparent;
+  background: var(--qn-bg);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern";
 }
+
+/* 选中态：用低饱和蓝，和光标同一个色系 */
+::selection { background: var(--qn-sel); }
 
 #qn-app {
   display: flex;
   flex-direction: column;
   height: 100%;
-}
-
-/* ---------- 状态栏（文件名移到这里，v3 无工具栏） ---------- */
-
-#qn-file {
-  flex: 0 0 auto;
-  max-width: 45%;
-  margin-left: auto;
-  text-align: right;
-  font-size: 11px;
-  color: var(--qn-fg-3);
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* ---------- 编辑区 ---------- */
@@ -70,125 +73,167 @@ body {
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
+  /* 细滚动条：默认样式在小面板里太粗 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 122, 112, .38) transparent;
 }
+#qn-scroll::-webkit-scrollbar { width: 8px; }
+#qn-scroll::-webkit-scrollbar-track { background: transparent; }
+#qn-scroll::-webkit-scrollbar-thumb {
+  background: rgba(128, 122, 112, .34);
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background-clip: content-box;
+}
+#qn-scroll::-webkit-scrollbar-thumb:hover { background: rgba(128, 122, 112, .55); background-clip: content-box; }
 
 #qn-editor {
   /* 撑满滚动区：否则内容下方空白属于 #qn-scroll，
      「点击空白聚焦最后一块」就点不到（v3 修复） */
   min-height: 100%;
-  padding: 14px 18px 22px;
+  position: relative;
+  padding: 18px 22px 30px;
   outline: none;
   caret-color: var(--qn-accent);
 }
 #qn-editor.is-empty::before {
-  content: "输入 Markdown，例如 # 标题、**加粗**、- 列表";
+  content: "开始写点什么…";
   position: absolute;
+  left: 22px;
+  top: 18px;
   color: var(--qn-fg-3);
   pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .qn-block {
   position: relative;
-  margin: 0 0 2px;
+  margin: 0 0 3px;
   padding: 1px 0;
-  border-radius: 4px;
+  border-radius: 5px;
   word-break: break-word;
   white-space: pre-wrap;
 }
 .qn-block:focus { outline: none; }
 
+/* 标题：靠字号和字重拉开层级，不加装饰 */
 .qn-block h1, .qn-block h2, .qn-block h3 {
   margin: 0;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.32;
+  letter-spacing: -.01em;
 }
-.qn-block h1 { font-size: 22px; margin-top: 14px; }
-.qn-block h2 { font-size: 18px; margin-top: 12px; }
-.qn-block h3 { font-size: 16px; margin-top: 10px; }
+.qn-block h1 {
+  font-size: 21px;
+  margin: 18px 0 2px;
+  font-weight: 700;
+  letter-spacing: -.022em;
+}
+.qn-block h2 { font-size: 17px; margin: 15px 0 1px; letter-spacing: -.015em; }
+.qn-block h3 { font-size: 15px; margin: 13px 0 1px; }
+.qn-block:first-child h1,
+.qn-block:first-child h2,
+.qn-block:first-child h3 { margin-top: 4px; }
 
 .qn-block p { margin: 0; }
 
 .qn-block blockquote {
-  margin: 4px 0;
-  padding: 2px 0 2px 12px;
-  border-left: 3px solid var(--qn-quote-bar);
+  margin: 6px 0;
+  padding: 3px 0 3px 14px;
+  border-left: 2.5px solid var(--qn-quote-bar);
   color: var(--qn-fg-2);
 }
 .qn-block blockquote p { margin: 0; }
 
 .qn-block ul, .qn-block ol {
-  margin: 2px 0;
-  padding-left: 24px;
+  margin: 4px 0;
+  padding-left: 25px;
 }
-.qn-block li { margin: 1px 0; }
+.qn-block li { margin: 2px 0; }
+.qn-block li::marker { color: var(--qn-fg-3); }
 
 .qn-block pre {
-  margin: 6px 0;
-  padding: 10px 12px;
+  margin: 9px 0;
+  padding: 12px 14px;
   background: var(--qn-code-bg);
-  border-radius: 6px;
+  border: 1px solid var(--qn-border-soft);
+  border-radius: 9px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.62;
   white-space: pre;
   overflow-x: auto;
+  box-shadow: 0 1px 0 var(--qn-shadow);
 }
 .qn-block pre code { font: inherit; background: none; padding: 0; }
 
 .qn-block code {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: .88em;
+  font-size: .87em;
   background: var(--qn-code-bg);
-  border-radius: 3px;
-  padding: 1px 4px;
+  border-radius: 4px;
+  padding: 1.5px 5px;
 }
 
 .qn-block hr {
   border: 0;
-  border-top: 1px solid var(--qn-border);
-  margin: 10px 0;
+  height: 1px;
+  background: var(--qn-border);
+  margin: 16px 0;
 }
 .qn-block[data-type="hr"] { padding: 0; }
-.qn-block[data-type="hr"] hr { margin: 10px 0; }
+.qn-block[data-type="hr"] hr { margin: 16px 0; }
 
 .qn-block a { color: var(--qn-accent); text-decoration: none; }
 .qn-block a:hover { text-decoration: underline; }
 
 .qn-block del { color: var(--qn-fg-3); }
 
-/* 任务列表勾选框 */
-.qn-block li.qn-task { list-style: none; margin-left: -18px; display: flex; align-items: flex-start; }
+/* 任务列表勾选框：圆角小方块，未完成是空心描边 */
+.qn-block li.qn-task {
+  list-style: none;
+  margin-left: -19px;
+  display: flex;
+  align-items: flex-start;
+}
 .qn-box {
   flex: 0 0 auto;
-  width: 14px; height: 14px;
-  margin: 4px 7px 0 0;
+  width: 15px; height: 15px;
+  margin: 4px 8px 0 0;
   border: 1.5px solid var(--qn-fg-3);
-  border-radius: 3px;
+  border-radius: 4.5px;
   cursor: default;
   position: relative;
+  transition: background .12s ease, border-color .12s ease;
 }
 .qn-box.on { background: var(--qn-accent); border-color: var(--qn-accent); }
 .qn-box.on::after {
   content: "";
   position: absolute;
-  left: 3.5px; top: 1px;
-  width: 4px; height: 8px;
+  left: 4px; top: 1px;
+  width: 4.5px; height: 8.5px;
   border: solid #fff;
-  border-width: 0 1.5px 1.5px 0;
-  transform: rotate(40deg);
+  border-width: 0 1.8px 1.8px 0;
+  transform: rotate(42deg);
 }
 .qn-task > span:last-child { flex: 1 1 auto; min-width: 0; }
+.qn-task.qn-done > span:last-child { color: var(--qn-fg-3); }
 
 /* ---------- 状态栏 ---------- */
+/* 备忘录底部工具条的质感：细、淡、贴着一条发丝线 */
 
 #qn-status {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 4px 12px;
+  gap: 9px;
+  height: 24px;
+  padding: 0 14px;
   border-top: 1px solid var(--qn-border);
+  background: rgba(128, 122, 112, .06);
   font-size: 11px;
+  line-height: 1;
   color: var(--qn-fg-3);
   user-select: none;
   -webkit-user-select: none;
@@ -198,6 +243,22 @@ body {
   border-radius: 50%;
   background: #34c759;
   flex: 0 0 auto;
+  box-shadow: 0 0 0 2px rgba(52, 199, 89, .2);
 }
-#qn-status.qn-dirty .qn-dot { background: #ff9500; }
+#qn-status.qn-dirty .qn-dot {
+  background: #ff9f0a;
+  box-shadow: 0 0 0 2px rgba(255, 159, 10, .2);
+}
 #qn-count { flex: 0 0 auto; }
+
+#qn-file {
+  flex: 0 1 auto;
+  margin-left: auto;
+  text-align: right;
+  font-size: 11px;
+  color: var(--qn-fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 52%;
+}

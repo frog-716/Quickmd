@@ -83,12 +83,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         container = PanelContainerView(frame: NSRect(origin: .zero, size: panelSize))
         container.wantsLayer = true
-        container.layer?.cornerRadius = 10
-        container.layer?.masksToBounds = true
+        container.layer?.cornerRadius = 14            // 备忘录式大圆角
+        // 不开 masksToBounds：容器要负责投影，裁剪会让阴影消失。
+        // WebView 的圆角由它自己的 layer 单独处理。
+        container.layer?.masksToBounds = false
         container.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         container.onClick = { [weak self] in self?.activatePanel() }
 
         panel.contentView = container
+
+        // 边缘补一圈发丝线，让卡片在深色桌面上有清晰边界（备忘录质感）
+        container.layer?.borderWidth = 0.5
+        container.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
     }
 
     private func setupWebView() {
@@ -100,6 +106,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wv.setValue(false, forKey: "drawsBackground")
         wv.autoresizingMask = [.width, .height]
         wv.allowsMagnification = false
+        // WebView 自己裁圆角（容器不裁，因为容器要留投影）
+        wv.wantsLayer = true
+        wv.layer?.cornerRadius = 14
+        wv.layer?.masksToBounds = true
         // 点击 WebView 内容 = 点击面板：先激活拿键盘，再让 WebKit 处理点击落点
         wv.onActivateClick = { [weak self] in self?.activatePanel(fromClick: true) }
         webView = wv
@@ -312,8 +322,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-        if CommandLine.arguments.contains("--mdtest") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+        if CommandLine.arguments.contains("--shot") {
+            // 截图自检：塞一份示例文档，把面板渲染成 PNG 存到临时目录，
+            // 用来肉眼检查 UI 质感（字体、间距、圆角、纸面颜色）。
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                self?.showPanelIfNeeded()
+                self?.activatePanel()
+                self?.pushToEditor(Self.sampleDocument, file: "sample.md")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                    self?.capturePanelShot()
+                }
+            }
+        }
+        if CommandLine.arguments.contains("--dark-shot") {
+            // 深色外观截图：强制 WebView 走暗色外观（CSS 里的 prefers-color-scheme
+            // 就会切到深色分支），便于检查暗色下的对比度。
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self else { return }
+                self.webView.appearance = NSAppearance(named: .darkAqua)
+                self.showPanelIfNeeded()
+                self.activatePanel()
+                self.pushToEditor(Self.sampleDocument, file: "sample.md")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
+                    self?.capturePanelShot(named: "quickmd-dark")
+                }
+            }
+        }
+        if CommandLine.arguments.contains("--mdtest") {            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
                 self?.runMarkdownRoundTrip()
             }
         }
@@ -376,55 +411,118 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             el.textContent = text;
             el.dispatchEvent(new Event('input', {bubbles: true}));
           }
-          function caretTo(node) {
+          // 光标放到节点末尾（回车才会在后面生成新项）
+          function caretToEnd(node) {
             var r = document.createRange();
-            r.setStart(node, 0); r.collapse(true);
+            r.selectNodeContents(node); r.collapse(false);
             var s = window.getSelection();
             s.removeAllRanges(); s.addRange(r);
           }
+          function press(el, init) {
+            var opts = {bubbles: true, cancelable: true};
+            for (var k in init) opts[k] = init[k];
+            el.dispatchEvent(new KeyboardEvent('keydown', opts));
+          }
+          // 每步单独包 try/catch：一步炸了不影响后面的步骤继续跑
+          function step(name, fn) {
+            try { out.push(name + '=' + fn()); }
+            catch (e) { out.push(name + '=ERR:' + (e && e.message ? e.message : String(e))); }
+          }
 
-          // 1) 段落 -> 标题
-          qn.load('普通文字', 't.md');
-          var el = document.querySelector('.qn-block');
-          typeInto(el, '# 标题');
-          out.push('前缀标题=' + el.getAttribute('data-type') + '/' + el.textContent);
+          step('前缀标题', function () {
+            qn.load('普通文字', 't.md');
+            var el = document.querySelector('.qn-block');
+            typeInto(el, '# 标题');
+            return el.getAttribute('data-type') + '/' + el.textContent;
+          });
 
-          // 2) 段落 -> 任务列表
-          qn.load('普通文字', 't.md');
-          el = document.querySelector('.qn-block');
-          typeInto(el, '- [ ] 买牛奶');
-          out.push('前缀任务=' + el.getAttribute('data-type')
+          step('前缀任务', function () {
+            qn.load('普通文字', 't.md');
+            var el = document.querySelector('.qn-block');
+            typeInto(el, '- [ ] 买牛奶');
+            return el.getAttribute('data-type')
                    + '/有勾选框=' + (el.innerHTML.indexOf('qn-box') >= 0)
-                   + '/文本=' + el.textContent);
+                   + '/文本=' + el.textContent;
+          });
 
-          // 3) 段落 -> 无序列表
-          qn.load('普通文字', 't.md');
-          el = document.querySelector('.qn-block');
-          typeInto(el, '- 项目');
-          out.push('前缀列表=' + el.getAttribute('data-type'));
+          step('前缀列表', function () {
+            qn.load('普通文字', 't.md');
+            var el = document.querySelector('.qn-block');
+            typeInto(el, '- 项目');
+            return el.getAttribute('data-type');
+          });
 
           // 4) Tab 缩进：把第 2 项缩进到第 1 项下面
-          qn.load('- 甲' + NL + '- 乙', 't.md');
-          var lis = document.querySelectorAll('.qn-block li');
-          if (lis.length >= 2) {
+          step('Tab缩进', function () {
+            qn.load('- 甲' + NL + '- 乙', 't.md');
+            var lis = document.querySelectorAll('.qn-block li');
+            if (lis.length < 2) return 'NO_LI';
             var second = lis[1];
             var textNode = second.querySelector('span') ? second.querySelector('span').firstChild : second.firstChild;
             if (textNode) {
-              caretTo(textNode);
-              second.dispatchEvent(new KeyboardEvent('keydown', {key: 'Tab', bubbles: true, cancelable: true}));
+              caretToEnd(textNode);
+              press(second, {key: 'Tab'});
             }
             var nested = document.querySelector('.qn-block ul ul li');
-            out.push('Tab缩进=' + (nested ? nested.textContent : 'NONE')
-                     + '/md=' + flat(qn.getMarkdown()));
+            return (nested ? nested.textContent : 'NONE') + '/md=' + flat(qn.getMarkdown());
+          });
 
-            // 5) Shift+Tab 减缩进
+          // 5) Shift+Tab 减缩进
+          step('ShiftTab减缩进', function () {
             var nestedLi = document.querySelector('.qn-block ul ul li');
-            if (nestedLi && nestedLi.firstChild) {
-              caretTo(nestedLi.firstChild);
-              nestedLi.dispatchEvent(new KeyboardEvent('keydown', {key: 'Tab', shiftKey: true, bubbles: true, cancelable: true}));
+            if (!nestedLi) return 'NO_NESTED';
+            if (nestedLi.firstChild) {
+              caretToEnd(nestedLi.firstChild);
+              press(nestedLi, {key: 'Tab', shiftKey: true});
             }
-            out.push('ShiftTab减缩进=' + flat(qn.getMarkdown()));
-          }
+            return flat(qn.getMarkdown());
+          });
+
+          // 6) 有序列表起始序号：Typora 行为，写 3. 就从 3 开始
+          step('有序起始', function () {
+            qn.load('3. 第三项', 't.md');
+            var el = document.querySelector('.qn-block');
+            var o = el.querySelector('ol');
+            return (o ? o.getAttribute('start') : 'NONE') + '/md=' + flat(qn.getMarkdown());
+          });
+
+          // 7) 有序列表里回车 -> 新项接在后面，序号自动续
+          step('有序续号', function () {
+            qn.load('1. 甲', 't.md');
+            var ol = document.querySelector('.qn-block ol');
+            if (!ol) return 'NO_OL';
+            var firstLi = ol.querySelector('li');
+            if (firstLi.firstChild) {
+              caretToEnd(firstLi.firstChild);
+              press(firstLi, {key: 'Enter'});
+            }
+            return flat(qn.getMarkdown()) + '/项数=' + document.querySelectorAll('.qn-block ol li').length;
+          });
+
+          // 8) 连续回车两次 -> 第二个空项上再回车应退出列表
+          step('空项退列表', function () {
+            qn.load('1. 甲', 't.md');
+            var li = document.querySelector('.qn-block ol li');
+            if (!li) return 'NO_LI';
+            if (li.firstChild) { caretToEnd(li.firstChild); press(li, {key: 'Enter'}); }
+            // 现在有 2 项：甲 + 新建的空项
+            var empty = document.querySelectorAll('.qn-block ol li')[1];
+            if (!empty) return 'NO_EMPTY';
+            press(empty, {key: 'Enter'});
+            return flat(qn.getMarkdown()) + '/剩余列表项=' + document.querySelectorAll('.qn-block ol li').length;
+          });
+
+          // 9) 列表互转：ul -> ol 应按层级编号
+          step('转有序', function () {
+            qn.load('- 甲' + NL + '  - 甲一' + NL + '- 乙', 't.md');
+            var el = document.querySelector('.qn-block');
+            // 先把光标放进块里，applyBlockType 依赖 activeBlock
+            var firstText = el.querySelector('li').firstChild;
+            if (firstText) caretToEnd(firstText);
+            press(el, {key: '8', metaKey: true});
+            return flat(qn.getMarkdown());
+          });
+
           return out.join(' ;; ');
         })();
         """
@@ -439,9 +537,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// 诊断：把当前面板渲染成 PNG，存到 /tmp/quickmd-shot.png。
+    /// 用途：肉眼检查 UI 质感——字号层级、行距、圆角、纸面颜色。
+    private func capturePanelShot(named name: String = "quickmd-shot") {
+        guard let rep = container.bitmapImageRepForCachingDisplay(in: container.bounds) else { return }
+        container.cacheDisplay(in: container.bounds, to: rep)
+        guard let png = rep.representation(using: .png, properties: [:]) else { return }
+        let out = URL(fileURLWithPath: "/tmp/\(name).png")
+        try? png.write(to: out)
+        log("截图已保存 \(out.path)")
+        print("截图已保存 \(out.path)")
+    }
+
+    /// --shot 用的示例文档：把各种块类型都放一遍，方便检查排版。
+    private static let sampleDocument = """
+    # 刘海速记
+
+    段落文字：这是一段普通正文，用来检查**加粗**、*斜体*、`行内代码` 与~~删除线~~的显示。
+
+    ## 二级标题
+
+    - 无序列表项一
+    - 无序列表项二
+      - 嵌套的子项
+    - [x] 已完成的任务
+    - [ ] 没完成的任务
+
+    ### 三级标题
+
+    1. 有序列表第一项
+    2. 有序列表第二项
+    3. 有序列表第三项
+
+    > 引用一段话，检查左侧竖线和次要文字颜色。
+
+    ```swift
+    let answer = 42
+    print("hello")
+    ```
+
+    ---
+
+    结尾。
+    """
+
     /// 诊断：报告当前文档渲染出的块数与文本量
-    private func logBlockCount() {
-        let js = """
+    private func logBlockCount() {        let js = """
         (function(){
           var bs = document.querySelectorAll('.qn-block');
           var chars = 0;

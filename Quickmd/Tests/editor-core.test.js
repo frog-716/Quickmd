@@ -122,5 +122,24 @@ eq('缩进-一级', QN.parse('- 甲\n  - 乙')[0].md, '- 甲\n  - 乙');
 eq('缩进-两级', QN.parse('- 甲\n    - 乙')[0].md, '- 甲\n    - 乙');
 has('缩进-渲染出两层嵌套', QN.renderBlock(QN.parse('- 甲\n  - 乙')[0]), '<li>甲<ul><li>乙</li></ul></li>');
 
+// ---- v3 新增：有序列表起始序号（Typora 行为：写 3. 就从 3 开始）----
+var olDoc = QN.parse('3. 第三\n4. 第四');
+eq('有序-解析为ol', olDoc[0].type, 'ol');
+has('有序-起始序号写入start', QN.renderBlock(olDoc[0]), '<ol start="3">');
+has('有序-首项内容保留', QN.renderBlock(olDoc[0]), '<li>第三</li>');
+has('有序-序号1不写start', QN.renderBlock(QN.parse('1. 一\n2. 二')[0]), '<ol>');
+has('有序-嵌套保序号', QN.renderBlock(QN.parse('1. 外\n   5. 内')[0]), '<ol start="5">');
+
+// ---- v3 新增：列表标记互转（ul <-> ol）按层级重新编号 ----
+eq('互转-转有序从1开始', QN.toOrdered('- 甲\n- 乙'), '1. 甲\n2. 乙');
+eq('互转-转有序嵌套分层', QN.toOrdered('- 甲\n  - 甲一\n- 乙'), '1. 甲\n  1. 甲一\n2. 乙');
+eq('互转-转有序保留原号', QN.toOrdered('3. 甲\n4. 乙'), '3. 甲\n4. 乙');
+eq('互转-转无序', QN.toBullet('1. 甲\n2. 乙'), '- 甲\n- 乙');
+eq('互转-转无序保缩进', QN.toBullet('1. 甲\n   2. 乙'), '- 甲\n   - 乙');
+
+// ---- v3 新增：多行列表整体降级时，每行标记都要去掉 ----
+eq('降级-多行列表去干净', QN.stripMarkers('1. 甲\n2. 乙'), '甲\n乙');
+eq('降级-任务行去标记', QN.stripMarkers('- [ ] 待办'), '待办');
+
 console.log('\n===== ' + pass + ' 通过, ' + fail + ' 失败 =====');
 process.exit(fail ? 1 : 0);

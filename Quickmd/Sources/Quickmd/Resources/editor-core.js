@@ -58,12 +58,43 @@
     return t;
   }
 
-  // 去掉行首块级标记，用于「降级为普通段落」
+  // 去掉行首块级标记，用于「降级为普通段落」。
+  // 每一行都要去掉列表标记——多行列表整体降级时，只去第一行会留下 "2. xxx" 这种残留。
+  // 任务项是两层标记（"- [ ] 待办"），所以要连续剥两次。
   function stripMarkers(md) {
-    return String(md).split('\n').map(function (l, i) {
-      return i === 0
-        ? l.replace(/^\s*(#{1,3}\s+|>\s?|[-*+]\s+|\d+\.\s+|\[[ xX]\]\s+)/, '')
-        : l.replace(/^\s*>\s?/, '');
+    return String(md).split('\n').map(function (l) {
+      return l.replace(/^\s*(#{1,3}\s+|>\s?|[-*+]\s+|\d+\.\s+)/, '')   // 标题 / 引用 / 列表
+              .replace(/^\s*\[[ xX]\]\s+/, '')                      // 任务标记
+              .replace(/^\s*>\s?/, '');
+    }).join('\n');
+  }
+
+  // 列表标记互转：ul <-> ol。
+  // 转有序时按层级分别编号（顶层 1. 2. 3.，嵌套层各自从 1. 重新数），
+  // 已经写成数字的行保留原号，这样「3. 4. 5.」的文档来回转换不会被打乱。
+  function toOrdered(md) {
+    var counters = [];
+    return String(md).split('\n').map(function (l) {
+      var m = l.match(/^(\s*)(?:[-*+]|\d+\.)\s+([\s\S]*)$/);
+      if (!m) return l;
+      var level = Math.floor(m[1].length / 2);
+      var num;
+      var om = l.match(/^\s*(\d+)\./);
+      if (om) {
+        num = parseInt(om[1], 10) || 1;         // 原本就是有序 -> 保号
+      } else {
+        counters[level] = (counters[level] || 0) + 1;
+        num = counters[level];
+      }
+      counters[level] = num;
+      counters.length = level + 1;              // 更深层重置
+      return m[1] + num + '. ' + m[2];
+    }).join('\n');
+  }
+
+  function toBullet(md) {
+    return String(md).split('\n').map(function (l) {
+      return l.replace(/^(\s*)(?:[-*+]|\d+\.)\s+/, '$1- ');
     }).join('\n');
   }
 
@@ -134,17 +165,23 @@
   /* ============================ block -> HTML =========================== */
 
   // 按缩进把列表项渲染成嵌套 HTML。start/end 为 items 的区间，indent 为本层缩进。
-  function renderListItems(items, start, indent, forcedTag) {
+  // startNum：有序列表的起始序号（>1 时输出 <ol start="N">，用于「3. 4. 5.」这类文档）
+  function renderListItems(items, start, indent, forcedTag, startNum) {
     var html = '';
     var i = start;
     var tag = forcedTag || (items[start] && items[start].ordered ? 'ol' : 'ul');
-    html += '<' + tag + '>';
+    var openTag = '<' + tag;
+    if (tag === 'ol' && startNum && startNum > 1) openTag += ' start="' + startNum + '"';
+    html += openTag + '>';
     while (i < items.length && items[i].indent >= indent) {
       if (items[i].indent > indent) { i++; continue; }   // 深层由上层消费
       var it = items[i];
       var nested = '';
       if (i + 1 < items.length && items[i + 1].indent > indent) {
-        var r = renderListItems(items, i + 1, items[i + 1].indent, null);
+        // 嵌套列表也保自己的起始序号（"3. 外层" 里嵌 "5. 内层"）
+        var nestedNum = (items[i + 1].ordered && items[i + 1].num)
+          ? parseInt(items[i + 1].num, 10) : 1;
+        var r = renderListItems(items, i + 1, items[i + 1].indent, null, nestedNum);
         nested = r.html;
         i = r.next - 1;
       }
@@ -189,10 +226,14 @@
         var tag = b.type;
         var items = md.split('\n').map(function (l) {
           var m = l.match(/^(\s*)(?:[-*+]|\d+\.)\s+([\s\S]*)$/);
-          return m ? { indent: m[1].length, ordered: /\d+\./.test(l.trim()), text: m[2] }
-                   : { indent: 0, ordered: false, text: l };
+          var num = m ? (m[0].match(/^\s*(\d+)\./) || [null, null])[1] : null;
+          return m ? { indent: m[1].length, ordered: /\d+\./.test(l.trim()), text: m[2], num: num }
+                   : { indent: 0, ordered: false, text: l, num: null };
         });
-        return renderListItems(items, 0, 0, tag).html;
+        // 有序列表保留首项写下的序号（Typora 行为：3. 开头就渲染成 3、4、5）
+        var firstNum = (tag === 'ol' && items[0] && items[0].num)
+          ? parseInt(items[0].num, 10) : 1;
+        return renderListItems(items, 0, 0, tag, firstNum).html;
       }
       default:
         return '<p>' + md.split('\n').map(inline).join('<br>') + '</p>';
@@ -202,7 +243,8 @@
   /* ============================ 导出 ============================ */
 
   var QN_CORE = { esc: esc, inline: inline, parse: parse, renderBlock: renderBlock,
-                  stripMarkers: stripMarkers, safeURL: safeURL };
+                  stripMarkers: stripMarkers, safeURL: safeURL,
+                  toOrdered: toOrdered, toBullet: toBullet };
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = QN_CORE;
