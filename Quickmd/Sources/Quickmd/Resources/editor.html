@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quickmd</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<div id="qn-app">
+  <div id="qn-toolbar">
+    <button class="qn-btn h" data-cmd="h1" title="一级标题 (⌘1)">H1</button>
+    <button class="qn-btn h" data-cmd="h2" title="二级标题 (⌘2)">H2</button>
+    <button class="qn-btn h" data-cmd="h3" title="三级标题 (⌘3)">H3</button>
+    <span class="qn-sep"></span>
+    <button class="qn-btn b" data-cmd="bold" title="加粗 (⌘B)">B</button>
+    <button class="qn-btn i" data-cmd="italic" title="斜体 (⌘I)">I</button>
+    <button class="qn-btn s" data-cmd="strike" title="删除线 (⇧⌘X)">S</button>
+    <button class="qn-btn mono" data-cmd="code" title="行内代码 (⌘E)">&lt;/&gt;</button>
+    <button class="qn-btn" data-cmd="link" title="链接 (⌘K)">链接</button>
+    <span class="qn-sep"></span>
+    <button class="qn-btn" data-cmd="ul" title="无序列表 (⌘7)">• 列表</button>
+    <button class="qn-btn" data-cmd="ol" title="有序列表 (⌘8)">1. 列表</button>
+    <button class="qn-btn" data-cmd="quote" title="引用 (⌘9)">引用</button>
+    <button class="qn-btn" data-cmd="code" title="代码块">代码块</button>
+    <button class="qn-btn" data-cmd="p" title="转为普通段落">正文</button>
+    <span id="qn-file">未命名</span>
+  </div>
+
+  <div id="qn-scroll">
+    <div id="qn-editor"></div>
+  </div>
+
+  <div id="qn-status">
+    <span class="qn-dot"></span>
+    <span id="qn-savestate">就绪</span>
+    <span id="qn-count">0 字</span>
+    <span id="qn-hint">Esc 关闭 · 可拖入 .md 文件</span>
+  </div>
+</div>
+<script src="editor.js"></script>
+</body>
+</html>

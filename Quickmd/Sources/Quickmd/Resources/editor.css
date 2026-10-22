@@ -1,0 +1,248 @@
+/* Quickmd Markdown 编辑器样式
+ * 目标观感：飞书云文档式 —— 干净排版、克制工具栏、 generous 行距、单栏所见即所得。
+ * 配色跟随系统（prefers-color-scheme），容器底色由 AppKit 提供，body 透明。
+ */
+
+:root {
+  --qn-fg: #1f2329;
+  --qn-fg-2: #646a73;
+  --qn-fg-3: #8f959e;
+  --qn-accent: #3370ff;
+  --qn-border: #dee0e3;
+  --qn-hover: #eff0f1;
+  --qn-code-bg: #f5f6f7;
+  --qn-quote-bar: #d0d3d9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --qn-fg: #e8e9eb;
+    --qn-fg-2: #a9adb4;
+    --qn-fg-3: #7d828a;
+    --qn-accent: #4c88ff;
+    --qn-border: #3a3d42;
+    --qn-hover: #2f3236;
+    --qn-code-bg: #26282c;
+    --qn-quote-bar: #4a4d52;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font: 15px/1.75 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+        "Helvetica Neue", "Segoe UI", sans-serif;
+  color: var(--qn-fg);
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+#qn-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ---------- 工具栏 ---------- */
+
+#qn-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--qn-border);
+  user-select: none;
+  -webkit-user-select: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#qn-toolbar::-webkit-scrollbar { display: none; }
+
+#qn-toolbar .qn-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 5px;
+  background: var(--qn-border);
+  flex: 0 0 auto;
+}
+
+.qn-btn {
+  flex: 0 0 auto;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--qn-fg-2);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 5px 7px;
+  border-radius: 5px;
+  cursor: default;
+  white-space: nowrap;
+}
+.qn-btn:hover { background: var(--qn-hover); color: var(--qn-fg); }
+.qn-btn:active { background: var(--qn-border); }
+.qn-btn.b { font-weight: 600; }
+.qn-btn.i { font-style: italic; }
+.qn-btn.s { text-decoration: line-through; }
+.qn-btn.h { font-weight: 600; letter-spacing: .2px; }
+.qn-btn.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+#qn-file {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  font-size: 11px;
+  color: var(--qn-fg-3);
+  padding-left: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- 编辑区 ---------- */
+
+#qn-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#qn-editor {
+  padding: 14px 18px 22px;
+  outline: none;
+  caret-color: var(--qn-accent);
+}
+#qn-editor.is-empty::before {
+  content: "输入 Markdown，例如 # 标题、**加粗**、- 列表";
+  position: absolute;
+  color: var(--qn-fg-3);
+  pointer-events: none;
+}
+
+.qn-block {
+  position: relative;
+  margin: 0 0 2px;
+  padding: 1px 0;
+  border-radius: 4px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.qn-block:focus { outline: none; }
+
+.qn-block h1, .qn-block h2, .qn-block h3 {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.qn-block h1 { font-size: 22px; margin-top: 14px; }
+.qn-block h2 { font-size: 18px; margin-top: 12px; }
+.qn-block h3 { font-size: 16px; margin-top: 10px; }
+
+.qn-block p { margin: 0; }
+
+.qn-block blockquote {
+  margin: 4px 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--qn-quote-bar);
+  color: var(--qn-fg-2);
+}
+.qn-block blockquote p { margin: 0; }
+
+.qn-block ul, .qn-block ol {
+  margin: 2px 0;
+  padding-left: 24px;
+}
+.qn-block li { margin: 1px 0; }
+
+.qn-block pre {
+  margin: 6px 0;
+  padding: 10px 12px;
+  background: var(--qn-code-bg);
+  border-radius: 6px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+}
+.qn-block pre code { font: inherit; background: none; padding: 0; }
+
+.qn-block code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .88em;
+  background: var(--qn-code-bg);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.qn-block hr {
+  border: 0;
+  border-top: 1px solid var(--qn-border);
+  margin: 10px 0;
+}
+.qn-block[data-type="hr"] { padding: 0; }
+.qn-block[data-type="hr"] hr { margin: 10px 0; }
+
+.qn-block a { color: var(--qn-accent); text-decoration: none; }
+.qn-block a:hover { text-decoration: underline; }
+
+.qn-block del { color: var(--qn-fg-3); }
+
+/* 任务列表勾选框 */
+.qn-block li.qn-task { list-style: none; margin-left: -18px; display: flex; align-items: flex-start; }
+.qn-box {
+  flex: 0 0 auto;
+  width: 14px; height: 14px;
+  margin: 4px 7px 0 0;
+  border: 1.5px solid var(--qn-fg-3);
+  border-radius: 3px;
+  cursor: default;
+  position: relative;
+}
+.qn-box.on { background: var(--qn-accent); border-color: var(--qn-accent); }
+.qn-box.on::after {
+  content: "";
+  position: absolute;
+  left: 3.5px; top: 1px;
+  width: 4px; height: 8px;
+  border: solid #fff;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(40deg);
+}
+.qn-task > span:last-child { flex: 1 1 auto; min-width: 0; }
+
+/* ---------- 状态栏 ---------- */
+
+#qn-status {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--qn-border);
+  font-size: 11px;
+  color: var(--qn-fg-3);
+  user-select: none;
+  -webkit-user-select: none;
+}
+#qn-status .qn-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #34c759;
+  flex: 0 0 auto;
+}
+#qn-status.qn-dirty .qn-dot { background: #ff9500; }
+#qn-count { flex: 1 1 auto; }
+#qn-hint { flex: 0 0 auto; opacity: .75; }
+
+/* 拖拽提示 */
+#qn-app.qn-dragging #qn-scroll { box-shadow: inset 0 0 0 2px var(--qn-accent); }

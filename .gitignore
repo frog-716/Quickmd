@@ -1,0 +1,27 @@
+# 构建产物
+.build/
+*.app
+*.o
+*.so
+*.dylib
+
+# SwiftPM
+.swiftpm/
+Package.resolved
+
+# 运行时数据（不入库）
+*.log
+scratch.md
+
+# Agent 工作区记忆（私有）
+.workbuddy/
+
+# 含私有项目（Career）内部分析，暂不公开；确认可公开后从本列表移除
+docs/01-调研与选型/备忘录迁移Markdown-可行性评估.md
+
+# 系统与编辑器垃圾
+.DS_Store
+*.xcuserstate
+xcuserdata/
+.idea/
+.vscode/
