@@ -25,7 +25,7 @@ open Quickmd.app      # 运行
 > SwiftPM 需要 `--disable-sandbox`（build.sh 已内置）；无需 Xcode，纯 Command Line Tools 可构建。
 > 首次运行会在 `~/Documents/Quickmd/` 创建 `scratch.md`（空白便签）。
 >
-> **换图标**：`ICON=2 ./build.sh`（1=终端绿 / 2=蓝图靛蓝 / 3=像素琥珀），三款都在 `assets/icons/`。
+> **图标**：应用图标源图在 `assets/icons/source-reference.jpg`，构建时自动打入；想换图重跑 `tools/make-doc-icon.swift` 生成即可。
 
 ## 手动测试
 
@@ -89,8 +89,8 @@ Quick-md/
 │   ├── 02-设计与方案/               # 技术方案、NotchNotes 刘海改造可行性
 │   ├── 03-使用与实现/               # MVP 使用说明、v2 实现说明、v3 手动测试清单
 │   └── 04-需求对齐/                 # v3 需求对齐清单与决策记录
-├── assets/icons/                    # 三款候选图标 + .icns（ICON=1/2/3 切换）
-├── tools/                           # 图标生成脚本（CoreGraphics 绘制，可复现）
+├── assets/icons/                    # 应用图标（源图 + .icns）
+├── tools/                           # 图标生成脚本（从源图裁剪合成，可复现）
 ├── memory/
 │   └── 项目历史决策.md              # 从第一天起的决策链与踩坑记录
 ├── references/

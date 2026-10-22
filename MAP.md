@@ -10,8 +10,8 @@ Quick-md/                        # 仓库根
 ├── README.md                    # 项目门面：定位 / 速查表 / 开机自启 / 已知边界
 ├── MAP.md                       # 本文件
 ├── docs/                        # 01 调研 · 02 设计 · 03 使用与实现 · 04 需求对齐
-├── assets/icons/                # 三款候选图标（PNG + .icns），ICON=1/2/3 切换
-├── tools/                       # 图标生成脚本（CoreGraphics 绘制，可复现）
+├── assets/icons/                # 应用图标（source-reference.jpg 源图 + Quickmd.icns）
+├── tools/                       # make-doc-icon.swift：从源图裁剪合成 .icns（可复现）
 ├── memory/项目历史决策.md        # 从第一天起的决策链与踩坑（为什么这么做）
 └── Quickmd/                     # SwiftPM 包（App 源码，无 Xcode 工程）
     ├── Package.swift            # 平台 macOS 14+ / 资源声明（零第三方依赖）
@@ -45,6 +45,7 @@ Quick-md/                        # 仓库根
 
 - JS↔Swift 桥：下行 `evaluateJavaScript(window.QN.load(md, file))`；上行 `WKScriptMessageHandler` 通道名 `quickmd`，消息只有 `ready` / `save` 两类
 - 前缀语法即入口（v3 无工具栏）：`# ` `## ` `### ` `1. ` `- ` `> ` `- [ ] ` `---`；快捷键 ⌘B/⌘I/⇧⌘X/⌘S/⌘1-3/⌘7-9、Tab/⇧Tab 缩进
+- 界面方向：像 macOS 备忘录一样用暖纸面和清楚的标题层级；主动作是点开后直接写 Markdown；面板固定 330×285pt，跟随系统深浅色；保存状态要看得清，任务框要看得出能点
 - 块间连接用 `\n\n`（CommonMark）；代码块语言标签存 `data-lang` 属性
 - XSS 三件套：`esc()` 全量转义 + `safeURL` 协议白名单 + 属性边界转义（v3 起链接只能手写 md，插入入口已移除，绕过面消失）
 - 面板两态：预览态（`canBecomeKey=false`，不抢焦点）/ 激活态（钉住不收起）；`EditorWebView` 负责把点击转成激活
@@ -56,6 +57,7 @@ Quick-md/                        # 仓库根
 | 项 | v2 | v3 |
 |---|---|---|
 | 界面 | 13 键工具栏 + 状态栏 | 无工具栏，只有编辑区 + 一行状态栏（保存态/字数/文件名） |
+| UI 润色（2026-10-22） | 状态栏文字偏小、偏淡；待办框没有可点击提示；删除线文字太浅 | 状态栏改为 12px / 28px 并提高对比度；待办框有手形指针和悬停反馈；删除线文字仍有弱化感但保持可读；浅色与深色模式分别配色 |
 | 功能入口 | 工具栏按钮 + 快捷键 + 插入链接弹窗 | 只剩前缀语法 + 快捷键；链接插入整体移除 |
 | 拖拽打开文件 | 支持（高亮是半残的） | 移除，菜单 ⌘O 保留 |
 | 保存 | JS 400ms + Swift 350ms 双防抖 | 只留 JS 400ms 一层 |
@@ -90,7 +92,6 @@ Quick-md/                        # 仓库根
 
 ```bash
 cd Quickmd && ./build.sh && open Quickmd.app        # 构建 + 运行
-ICON=2 ./build.sh                                   # 换图标（1 终端绿 / 2 蓝图靛蓝 / 3 像素琥珀）
 node Tests/editor-core.test.js                      # 单测（79 项）
 QUICKMD_DEBUG=1 ./Quickmd.app/Contents/MacOS/Quickmd --mdtest|--domtest|--clicktest|--blockcount|--logintest|--show-now
 ./Quickmd.app/Contents/MacOS/Quickmd --shot|--dark-shot   # 面板截图（UI 观感自检）

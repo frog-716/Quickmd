@@ -13,6 +13,8 @@
   --qn-fg: #2b2926;            /* 正文 */
   --qn-fg-2: #6f6a63;          /* 次要文字 */
   --qn-fg-3: #a19a90;          /* 占位符 / 弱化 */
+  --qn-status-fg: #706a62;     /* 状态栏文字：小字号仍清楚 */
+  --qn-control-border: #8c857b;
   --qn-accent: #0a7cff;        /* 强调 / 光标 */
   --qn-border: #e6e2da;        /* 发丝线 */
   --qn-border-soft: #efebe4;
@@ -28,6 +30,8 @@
     --qn-fg: #ede9e2;
     --qn-fg-2: #a8a199;
     --qn-fg-3: #746e66;
+    --qn-status-fg: #aaa39a;
+    --qn-control-border: #8f8980;
     --qn-accent: #3b9eff;
     --qn-border: #34322e;
     --qn-border-soft: #292824;
@@ -188,7 +192,7 @@ body {
 .qn-block a { color: var(--qn-accent); text-decoration: none; }
 .qn-block a:hover { text-decoration: underline; }
 
-.qn-block del { color: var(--qn-fg-3); }
+.qn-block del { color: var(--qn-fg-2); }
 
 /* 任务列表勾选框：圆角小方块，未完成是空心描边 */
 .qn-block li.qn-task {
@@ -201,13 +205,15 @@ body {
   flex: 0 0 auto;
   width: 15px; height: 15px;
   margin: 4px 8px 0 0;
-  border: 1.5px solid var(--qn-fg-3);
+  border: 1.5px solid var(--qn-control-border);
   border-radius: 4.5px;
-  cursor: default;
+  cursor: pointer;
   position: relative;
-  transition: background .12s ease, border-color .12s ease;
+  transition: background .12s ease, border-color .12s ease, filter .12s ease;
 }
+.qn-box:not(.on):hover { background: var(--qn-sel); border-color: var(--qn-accent); }
 .qn-box.on { background: var(--qn-accent); border-color: var(--qn-accent); }
+.qn-box.on:hover { filter: brightness(.92); }
 .qn-box.on::after {
   content: "";
   position: absolute;
@@ -227,14 +233,14 @@ body {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 9px;
-  height: 24px;
+  gap: 8px;
+  height: 28px;
   padding: 0 14px;
   border-top: 1px solid var(--qn-border);
   background: rgba(128, 122, 112, .06);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
-  color: var(--qn-fg-3);
+  color: var(--qn-status-fg);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -255,8 +261,8 @@ body {
   flex: 0 1 auto;
   margin-left: auto;
   text-align: right;
-  font-size: 11px;
-  color: var(--qn-fg-3);
+  font-size: 12px;
+  color: var(--qn-status-fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
