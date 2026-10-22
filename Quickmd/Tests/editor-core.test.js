@@ -1,4 +1,9 @@
-const QN = require('../Sources/Quickmd/Resources/editor.js');
+/* Quickmd 编辑器内核单测（Node 直接跑，无需依赖）
+ * 用法：node Tests/editor-core.test.js
+ * 只测 editor-core.js 里的纯函数——DOM 交互层（变形、缩进、Enter）需要真实浏览器，
+ * 走 App 的 --mdtest / --clicktest 诊断开关验证。
+ */
+const QN = require('../Sources/Quickmd/Resources/editor-core.js');
 let pass = 0, fail = 0;
 function eq(name, got, want) {
   const ok = got === want;
@@ -78,7 +83,14 @@ eq('降级-有序', QN.stripMarkers('1. 甲'), '甲');
 not('安全-script不注入', QN.renderBlock({type:'p', md:'<script>alert(1)</script>'}), '<script>');
 not('安全-img不注入', QN.renderBlock({type:'p', md:'<img src=x onerror=alert(1)>'}), '<img');
 not('安全-链接协议', QN.renderBlock({type:'p', md:'[x](javascript:alert(1))'}), 'javascript:');
-
+not('安全-js协议拦截', QN.renderBlock({type:'p', md:'[x](javascript:alert(1))'}), 'javascript:');
+not('安全-data协议拦截', QN.renderBlock({type:'p', md:'[x](data:text/html,<b>)'}), 'data:text');
+// 属性注入的判定标准是「有没有裸属性逃逸」，不是「文本里有没有这个词」：
+// `onmouseover="alert(1))` 里的引号被转义成 &quot; 后只是可见文本，不会变成属性。
+not('安全-属性注入', QN.renderBlock({type:'p', md:'[x](https://a" onmouseover="alert(1))'}), 'onmouseover="');
+not('安全-属性注入-未转义引号', QN.renderBlock({type:'p', md:'[x](https://a" onmouseover="alert(1))'}), 'onmouseover=alert');
+has('安全-正常链接保留', QN.renderBlock({type:'p', md:'[ok](https://example.com)'}), 'href="https://example.com"');
+has('安全-相对链接保留', QN.renderBlock({type:'p', md:'[ok](./doc.md)'}), 'href="./doc.md"');
 
 // ---- 嵌套列表 ----
 var nested = '- 甲\n  - 甲一\n  - 甲二\n- 乙';
@@ -99,12 +111,16 @@ has('任务-渲染未完成', QN.renderBlock(tb[0]), 'qn-box');
 has('任务-渲染已完成', QN.renderBlock(tb[0]), 'qn-box on');
 has('任务-md保留', tb[0].md, '[x] 已完成');
 
+// ---- v3 新增：任务列表前缀（- [ ] 空格）能被解析成任务项 ----
+var taskPrefix = QN.parse('- [ ] 待办');
+eq('任务前缀-类型ul', taskPrefix[0].type, 'ul');
+has('任务前缀-渲染出勾选框', QN.renderBlock(taskPrefix[0]), 'qn-box');
+has('任务前缀-正文保留', QN.renderBlock(taskPrefix[0]), '待办');
+
+// ---- v3 新增：缩进层级在 md 里的表达（Tab 一次 = 两个空格）----
+eq('缩进-一级', QN.parse('- 甲\n  - 乙')[0].md, '- 甲\n  - 乙');
+eq('缩进-两级', QN.parse('- 甲\n    - 乙')[0].md, '- 甲\n    - 乙');
+has('缩进-渲染出两层嵌套', QN.renderBlock(QN.parse('- 甲\n  - 乙')[0]), '<li>甲<ul><li>乙</li></ul></li>');
+
 console.log('\n===== ' + pass + ' 通过, ' + fail + ' 失败 =====');
 process.exit(fail ? 1 : 0);
-
-// ---- 补充安全用例 ----
-not('安全-js协议拦截', QN.renderBlock({type:'p', md:'[x](javascript:alert(1))'}), 'javascript:');
-not('安全-data协议拦截', QN.renderBlock({type:'p', md:'[x](data:text/html,<b>)'}), 'data:text');
-not('安全-属性注入', QN.renderBlock({type:'p', md:'[x](https://a" onmouseover="alert(1))'}), 'onmouseover');
-has('安全-正常链接保留', QN.renderBlock({type:'p', md:'[ok](https://example.com)'}), 'href="https://example.com"');
-has('安全-相对链接保留', QN.renderBlock({type:'p', md:'[ok](./doc.md)'}), 'href="./doc.md"');

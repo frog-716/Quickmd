@@ -9,6 +9,7 @@ let package = Package(
             name: "Quickmd",
             resources: [
                 .copy("Resources/editor.html"),
+                .copy("Resources/editor-core.js"),
                 .copy("Resources/editor.js"),
                 .copy("Resources/editor.css"),
             ]

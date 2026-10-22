@@ -50,59 +50,15 @@ body {
   height: 100%;
 }
 
-/* ---------- 工具栏 ---------- */
-
-#qn-toolbar {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--qn-border);
-  user-select: none;
-  -webkit-user-select: none;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-#qn-toolbar::-webkit-scrollbar { display: none; }
-
-#qn-toolbar .qn-sep {
-  width: 1px;
-  height: 16px;
-  margin: 0 5px;
-  background: var(--qn-border);
-  flex: 0 0 auto;
-}
-
-.qn-btn {
-  flex: 0 0 auto;
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--qn-fg-2);
-  font: inherit;
-  font-size: 12px;
-  line-height: 1;
-  padding: 5px 7px;
-  border-radius: 5px;
-  cursor: default;
-  white-space: nowrap;
-}
-.qn-btn:hover { background: var(--qn-hover); color: var(--qn-fg); }
-.qn-btn:active { background: var(--qn-border); }
-.qn-btn.b { font-weight: 600; }
-.qn-btn.i { font-style: italic; }
-.qn-btn.s { text-decoration: line-through; }
-.qn-btn.h { font-weight: 600; letter-spacing: .2px; }
-.qn-btn.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+/* ---------- 状态栏（文件名移到这里，v3 无工具栏） ---------- */
 
 #qn-file {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
+  max-width: 45%;
+  margin-left: auto;
   text-align: right;
   font-size: 11px;
   color: var(--qn-fg-3);
-  padding-left: 10px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -117,6 +73,9 @@ body {
 }
 
 #qn-editor {
+  /* 撑满滚动区：否则内容下方空白属于 #qn-scroll，
+     「点击空白聚焦最后一块」就点不到（v3 修复） */
+  min-height: 100%;
   padding: 14px 18px 22px;
   outline: none;
   caret-color: var(--qn-accent);
@@ -241,8 +200,4 @@ body {
   flex: 0 0 auto;
 }
 #qn-status.qn-dirty .qn-dot { background: #ff9500; }
-#qn-count { flex: 1 1 auto; }
-#qn-hint { flex: 0 0 auto; opacity: .75; }
-
-/* 拖拽提示 */
-#qn-app.qn-dragging #qn-scroll { box-shadow: inset 0 0 0 2px var(--qn-accent); }
+#qn-count { flex: 0 0 auto; }

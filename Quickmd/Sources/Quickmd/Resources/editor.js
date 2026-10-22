@@ -1,220 +1,28 @@
-/* Quickmd Markdown 编辑器内核 + UI
+/* Quickmd 编辑器 · 浏览器层（DOM + 交互）
  * ---------------------------------------------------------------------------
+ * 纯函数（parse / renderBlock / inline / esc）在 editor-core.js 里，
+ * 本文件只负责：把 md 变成可编辑的块、把 DOM 变回 md、处理键盘与保存。
+ *
  * 架构：分块 WYSIWYG。文档被切成一串「块」（段落/标题/列表/引用/代码/分隔线），
  * 每块是独立 contenteditable 元素。
  *
- *   md --parse--> blocks --renderBlock--> HTML --> contenteditable 编辑
- *    ^                                                    |
- *    |                                                    v
- *    +------- serializeNode/blockMD（DOM 反序列化）<--- 用户输入
- *
  * 关键点：
- *  - 只有「需要变形」时才重渲染（敲出 # 前缀、点工具栏、勾选任务），
+ *  - 只有「需要变形」时才重渲染（敲出 # 前缀、勾选任务），
  *    普通打字不动 DOM，因此光标永远不会跳。
  *  - 重渲染后用「文本偏移」恢复光标，不用浏览器 Selection 的 sticky 逻辑。
  *  - DOM -> md 的序列化是核心原语，保存与重渲染都依赖它。
  *
- * Node 环境下导出纯函数（esc/inline/parse/renderBlock/stripMarkers）便于单测。
+ * v3 变化：去掉工具栏与全部功能按钮，只保留「前缀语法 + 快捷键」；
+ *          新增任务列表前缀（- [ ] 空格）与列表项真实缩进（Tab / Shift+Tab）。
  */
 (function (root) {
   'use strict';
 
-  /* ============================ 纯函数：行内渲染 ============================ */
+  var QN_CORE = (typeof module !== 'undefined' && module.exports)
+    ? require('./editor-core.js')
+    : root.QNCore;
 
-  function esc(s) {
-    return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  // 链接协议白名单。任何可疑协议一律降级为 '#'，阻断 javascript:/data:/vbscript: 等。
-  function safeURL(u) {
-    var s = String(u == null ? '' : u).trim();
-    if (s === '') return '#';
-    if (/^(https?:\/\/|mailto:|tel:|#|\/|\.\/|\.\.\/)/i.test(s)) return s;
-    if (/^[a-z][a-z0-9+.\-]*:/i.test(s)) return '#';   // 带协议但不认识 -> 拦截
-    return s;                                          // 相对路径放行
-  }
-
-  // 行内 Markdown -> HTML。代码段优先保护，避免内部符号被二次解析。
-  function inline(text) {
-    var codes = [];
-    var t = String(text).replace(/`([^`\n]+)`/g, function (m, c) {
-      codes.push(c);
-      return '\u0000' + (codes.length - 1) + '\u0000';
-    });
-    t = esc(t);
-    t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    t = t.replace(/(^|[^\w*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
-    t = t.replace(/(^|[^\w_])_([^_\n]+)_/g, '$1<em>$2</em>');
-    t = t.replace(/~~([^~]+)~~/g, '<del>$1</del>');
-    t = t.replace(/\[([^\]]*)\]\(([^)\s]*)\)/g, function (m, label, url) {
-      return '<a href="' + esc(safeURL(url)) + '" target="_blank" rel="noreferrer">' + label + '</a>';
-    });
-    t = t.replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, function (m, pre, url) {
-      return pre + '<a href="' + esc(safeURL(url)) + '" target="_blank" rel="noreferrer">' + url + '</a>';
-    });
-    t = t.replace(/\u0000(\d+)\u0000/g, function (m, i) {
-      return '<code>' + esc(codes[+i]) + '</code>';
-    });
-    return t;
-  }
-
-  // 去掉行首块级标记，用于「降级为普通段落」
-  function stripMarkers(md) {
-    return String(md).split('\n').map(function (l, i) {
-      return i === 0
-        ? l.replace(/^\s*(#{1,3}\s+|>\s?|[-*+]\s+|\d+\.\s+|\[[ xX]\]\s+)/, '')
-        : l.replace(/^\s*>\s?/, '');
-    }).join('\n');
-  }
-
-  /* ============================ 纯函数：md -> blocks ======================== */
-
-  function parse(src) {
-    var out = [];
-    var lines = String(src == null ? '' : src).replace(/\r\n/g, '\n').split('\n');
-    var i = 0;
-    var isBlank = function (l) { return /^\s*$/.test(l); };
-
-    while (i < lines.length) {
-      var line = lines[i];
-      if (isBlank(line)) { i++; continue; }
-      var trimmed = line.trim();
-
-      // 代码围栏
-      if (/^```/.test(trimmed)) {
-        var buf = [line]; i++;
-        while (i < lines.length && !/^\s*```/.test(lines[i])) { buf.push(lines[i]); i++; }
-        if (i < lines.length) { buf.push(lines[i]); i++; }
-        out.push({ type: 'code', md: buf.join('\n') });
-        continue;
-      }
-      // 分隔线
-      if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
-        out.push({ type: 'hr', md: '---' }); i++; continue;
-      }
-      // 标题
-      var h = line.match(/^(#{1,3})\s+(.*)$/);
-      if (h) { out.push({ type: 'h' + h[1].length, md: line }); i++; continue; }
-      // 引用（连续行合并为一块）
-      if (/^\s*>\s?/.test(line)) {
-        var q = [];
-        while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
-          q.push(lines[i].replace(/^\s*>\s?/, '')); i++;
-        }
-        out.push({ type: 'quote', md: q.map(function (l) { return '> ' + l; }).join('\n') });
-        continue;
-      }
-      // 列表（有序/无序各自连续成块，含缩进嵌套）
-      var ordered = /^\s*\d+\.\s+/.test(line);
-      var bullet = /^\s*[-*+]\s+/.test(line);
-      if (ordered || bullet) {
-        var baseIndent = (line.match(/^\s*/) || [''])[0].length;
-        var ls = [];
-        while (i < lines.length) {
-          var l = lines[i];
-          if (/^\s*$/.test(l)) {
-            var nxt = lines[i + 1];
-            if (nxt !== undefined && /^\s*(?:[-*+]|\d+\.)\s+/.test(nxt) &&
-                (nxt.match(/^\s*/) || [''])[0].length >= baseIndent) { i++; continue; }
-            break;
-          }
-          var ind = (l.match(/^\s*/) || [''])[0].length;
-          if (!/^\s*(?:[-*+]|\d+\.)\s+/.test(l) || ind < baseIndent) break;
-          ls.push(l); i++;
-        }
-        out.push({ type: ordered ? 'ol' : 'ul', md: ls.join('\n') });
-        continue;
-      }
-      // 普通段落（一行一块，往返时用 \n 连接保持原样）
-      out.push({ type: 'p', md: line }); i++;
-    }
-    return out;
-  }
-
-  /* ============================ 纯函数：block -> HTML ======================= */
-
-  // 按缩进把列表项渲染成嵌套 HTML。start/end 为 items 的区间，indent 为本层缩进。
-  function renderListItems(items, start, indent, forcedTag) {
-    var html = '';
-    var i = start;
-    var tag = forcedTag || (items[start] && items[start].ordered ? 'ol' : 'ul');
-    html += '<' + tag + '>';
-    while (i < items.length && items[i].indent >= indent) {
-      if (items[i].indent > indent) { i++; continue; }   // 深层由上层消费
-      var it = items[i];
-      var nested = '';
-      if (i + 1 < items.length && items[i + 1].indent > indent) {
-        var r = renderListItems(items, i + 1, items[i + 1].indent, null);
-        nested = r.html;
-        i = r.next - 1;
-      }
-      var tm = it.text.match(/^\[( |x|X)\]\s*([\s\S]*)$/);
-      if (tm) {
-        html += '<li class="qn-task">' +
-          '<span class="qn-box' + (tm[1].toLowerCase() === 'x' ? ' on' : '') +
-          '" contenteditable="false"></span>' +
-          '<span>' + inline(tm[2]) + '</span>' + nested + '</li>';
-      } else {
-        html += '<li>' + inline(it.text) + nested + '</li>';
-      }
-      i++;
-    }
-    html += '</' + tag + '>';
-    return { html: html, next: i };
-  }
-
-  function renderBlock(b) {
-    var md = b.md;
-    switch (b.type) {
-      case 'hr':
-        return '<hr>';
-      case 'h1':
-        return '<h1>' + inline(md.replace(/^#\s+/, '')) + '</h1>';
-      case 'h2':
-        return '<h2>' + inline(md.replace(/^##\s+/, '')) + '</h2>';
-      case 'h3':
-        return '<h3>' + inline(md.replace(/^###\s+/, '')) + '</h3>';
-      case 'code': {
-        var lines = md.split('\n');
-        var body = lines.slice(1);
-        if (body.length && /^\s*```/.test(body[body.length - 1])) body.pop();
-        return '<pre><code>' + esc(body.join('\n')) + '</code></pre>';
-      }
-      case 'quote':
-        return '<blockquote>' + md.split('\n').map(function (l) {
-          return '<p>' + inline(l.replace(/^>\s?/, '')) + '</p>';
-        }).join('') + '</blockquote>';
-      case 'ul':
-      case 'ol': {
-        var tag = b.type;
-        var items = md.split('\n').map(function (l) {
-          var m = l.match(/^(\s*)(?:[-*+]|\d+\.)\s+([\s\S]*)$/);
-          return m ? { indent: m[1].length, ordered: /\d+\./.test(l.trim()), text: m[2] }
-                   : { indent: 0, ordered: false, text: l };
-        });
-        return renderListItems(items, 0, 0, tag).html;
-      }
-      default:
-        return '<p>' + md.split('\n').map(inline).join('<br>') + '</p>';
-    }
-  }
-
-  /* ============================ Node 导出（可单测） ========================= */
-
-  var QN_CORE = { esc: esc, inline: inline, parse: parse, renderBlock: renderBlock,
-                  stripMarkers: stripMarkers, safeURL: safeURL };
-
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = QN_CORE;
-    return;
-  }
-  if (root.QNCore) { root.QNCore = QN_CORE; }
-
-  /* ============================ 以下为浏览器专用 ============================ */
+  /* ============================ 浏览器专用状态 ============================ */
 
   var editorRoot = null;
   var saveTimer = null;
@@ -391,7 +199,7 @@
     el.className = 'qn-block';
     el.setAttribute('data-type', type);
     el.setAttribute('contenteditable', 'true');
-    el.innerHTML = renderBlock({ type: type, md: md });
+    el.innerHTML = QN_CORE.renderBlock({ type: type, md: md });
     // 代码块记住语言标签，往返时才不会丢 ```swift
     if (type === 'code') {
       var fm = String(md).match(/^```([^\s`]*)/);
@@ -402,7 +210,7 @@
 
   function renderInto(el, type, md) {
     el.setAttribute('data-type', type);
-    el.innerHTML = renderBlock({ type: type, md: md });
+    el.innerHTML = QN_CORE.renderBlock({ type: type, md: md });
     if (type === 'code') {
       var fm = String(md).match(/^```([^\s`]*)/);
       el.setAttribute('data-lang', fm ? fm[1] : '');
@@ -431,6 +239,12 @@
     setCaretAtOffset(el, offset);
   }
 
+  // 变形后恢复光标：前缀被吃掉后偏移要前移，调用方传「减去前缀长度」后的值
+  function restoreCaret(el, offset) {
+    var len = nodeTextLen(el);
+    focusBlock(el, Math.max(0, Math.min(offset == null ? 0 : offset, len)));
+  }
+
   /* ---------- 文档级序列化 ---------- */
 
   function getMarkdown() {
@@ -446,8 +260,8 @@
   }
 
   function countText(md) {
-    var cjk = (md.match(/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/g) || []).length;
-    var words = (md.replace(/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/g, ' ')
+    var cjk = (md.match(/[㐀-鿿぀-ヿ가-힯]/g) || []).length;
+    var words = (md.replace(/[㐀-鿿぀-ヿ가-힯]/g, ' ')
                    .match(/[A-Za-z0-9_'-]+/g) || []).length;
     return cjk + words;
   }
@@ -501,27 +315,43 @@
   function maybeTransform(el) {
     if (el.getAttribute('data-type') !== 'p') return false;
     var text = serializeNode(el);
+    var off = caretOffset(el);          // 变形前的光标位置
     var m;
-    if ((m = text.match(/^(#{1,3})\s/))) {
-      renderInto(el, 'h' + m[1].length, m[1] + ' ' + text.replace(/^#{1,3}\s+/, ''));
-      focusBlock(el);
+
+    // 任务列表：- [ ] 空格 / - [x] 空格
+    if ((m = text.match(/^([-*+])\s+\[([ xX])\]\s+/))) {
+      var mark = m[2].toLowerCase() === 'x' ? '[x]' : '[ ]';
+      var rest = text.replace(/^[-*+]\s+\[[ xX]\]\s+/, '');
+      renderInto(el, 'ul', '- ' + mark + ' ' + rest);
+      restoreCaret(el, off == null ? 0 : off - m[0].length);
       return true;
     }
+    // 标题
+    if ((m = text.match(/^(#{1,3})\s/))) {
+      var headRest = text.replace(/^#{1,3}\s+/, '');
+      renderInto(el, 'h' + m[1].length, m[1] + ' ' + headRest);
+      restoreCaret(el, off == null ? 0 : off - m[0].length);
+      return true;
+    }
+    // 无序列表
     if ((m = text.match(/^([-*+])\s/))) {
       renderInto(el, 'ul', '- ' + text.replace(/^[-*+]\s+/, ''));
-      focusBlock(el);
+      restoreCaret(el, off == null ? 0 : off - m[0].length);
       return true;
     }
+    // 有序列表
     if ((m = text.match(/^\d+\.\s/))) {
       renderInto(el, 'ol', '1. ' + text.replace(/^\d+\.\s+/, ''));
-      focusBlock(el);
+      restoreCaret(el, off == null ? 0 : off - m[0].length);
       return true;
     }
+    // 引用
     if ((m = text.match(/^>\s?/))) {
       renderInto(el, 'quote', '> ' + text.replace(/^>\s?/, ''));
-      focusBlock(el);
+      restoreCaret(el, off == null ? 0 : off - m[0].length);
       return true;
     }
+    // 分隔线
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(text.trim())) {
       var hr = document.createElement('div');
       hr.className = 'qn-block';
@@ -569,7 +399,10 @@
         return;
       }
       newType = type;
-      newMD = (type === 'ol' ? '1. ' : '- ') + tail;
+      // 任务列表回车续项时保持任务标记（未完成态）
+      var li = closestLi(e.target);
+      var isTask = !!(li && li.classList && li.classList.contains('qn-task'));
+      newMD = (isTask ? '- [ ] ' : (type === 'ol' ? '1. ' : '- ')) + tail;
     } else if (type === 'quote') {
       if (tail.trim() === '') { newType = 'p'; newMD = ''; }
       else { newType = 'quote'; newMD = '> ' + tail; }
@@ -606,59 +439,124 @@
       return;
     }
     if (type !== 'p') {                       // 有内容的块 -> 降级为普通段落
-      renderInto(el, 'p', stripMarkers(blockMD(el)));
+      renderInto(el, 'p', QN_CORE.stripMarkers(blockMD(el)));
       focusBlock(el, 0);
       scheduleSave();
     }
   }
 
-  /* ---------- 工具栏 / 快捷键 ---------- */
+  /* ---------- Tab / Shift+Tab：列表项缩进 ---------- */
 
-  function wrapCode() {
-    var el = activeBlock();
-    if (!el) return;
+  function closestLi(node) {
+    if (!node) return null;
+    if (node.nodeType === 3) node = node.parentNode;
+    if (!node || !node.closest) return null;
+    return node.closest('li');
+  }
+
+  // 当前光标是否在某个列表块里；是则返回 { li, block }
+  function currentListContext() {
     var sel = window.getSelection();
-    if (!sel.rangeCount || sel.isCollapsed) return;
-    var r = sel.getRangeAt(0);
-    var code = document.createElement('code');
-    try {
-      r.surroundContents(code);
-    } catch (err) {
-      code.appendChild(r.extractContents());
-      r.insertNode(code);
+    if (!sel || !sel.rangeCount) return null;
+    var li = closestLi(sel.anchorNode);
+    if (!li) return null;
+    var block = blockOf(li);
+    if (!block) return null;
+    var type = block.getAttribute('data-type');
+    if (type !== 'ul' && type !== 'ol') return null;
+    return { li: li, block: block };
+  }
+
+  // 缩进：把当前项挪进上一个兄弟项的子列表
+  function indentListItem(li) {
+    var prev = li.previousElementSibling;
+    if (!prev) return false;                  // 第一项没法再缩
+    var nested = null;
+    for (var i = 0; i < prev.children.length; i++) {
+      var c = prev.children[i];
+      var t = c.tagName.toLowerCase();
+      if (t === 'ul' || t === 'ol') { nested = c; break; }
     }
-    sel.removeAllRanges();
-    var nr = document.createRange();
-    nr.setStartAfter(code); nr.collapse(true);
-    sel.addRange(nr);
+    if (!nested) {
+      var tag = li.parentNode && li.parentNode.tagName.toLowerCase() === 'ol' ? 'ol' : 'ul';
+      nested = document.createElement(tag);
+      prev.appendChild(nested);
+    }
+    nested.appendChild(li);
+    return true;
+  }
+
+  // 减缩进：把当前项提到上一层（与父项同级）
+  function outdentListItem(li) {
+    var parent = li.parentNode;               // 当前所在的 ul/ol
+    var grandLi = parent && parent.parentNode;
+    if (!grandLi || grandLi.tagName.toLowerCase() !== 'li') return false;  // 顶层项没法再减
+    grandLi.parentNode.insertBefore(li, grandLi.nextSibling);
+    if (parent.children.length === 0 && parent.parentNode) {
+      parent.parentNode.removeChild(parent);   // 清空嵌套列表
+    }
+    return true;
+  }
+
+  function handleTab(e, isIndent) {
+    var ctx = currentListContext();
+    if (!ctx) {
+      // 不在列表里：Tab 插入两个空格；Shift+Tab 去掉行首缩进
+      if (isIndent) {
+        document.execCommand('insertText', false, '  ');
+        scheduleSave();
+      } else {
+        var el = activeBlock();
+        if (el) {
+          var t = serializeNode(el);
+          if (/^ {1,2}/.test(t)) {
+            renderInto(el, el.getAttribute('data-type'), t.replace(/^ {1,2}/, ''));
+            focusBlock(el, 0);
+            scheduleSave();
+          }
+        }
+      }
+      return;
+    }
+
+    e.preventDefault();
+    var offInLi = caretOffset(ctx.li);
+    var changed = isIndent ? indentListItem(ctx.li) : outdentListItem(ctx.li);
+    if (!changed) return;
+    // DOM 移动会丢光标，用「项内文本偏移」恢复
+    focusBlock(ctx.block);
+    if (offInLi != null) setCaretAtOffset(ctx.li, offInLi);
     scheduleSave();
   }
 
-  function insertLink() {
-    var el = activeBlock();
-    if (!el) return;
-    var sel = window.getSelection();
-    var text = sel && sel.rangeCount ? sel.toString() : '';
-    var url = root.prompt('链接地址：', 'https://');
-    if (!url) return;
-    document.execCommand('insertHTML', false,
-      '<a href="' + url.replace(/"/g, '&quot;') + '">' + esc(text || url) + '</a>');
-    scheduleSave();
-  }
+  /* ---------- 块类型切换（快捷键） ---------- */
 
   function applyBlockType(type) {
     var el = activeBlock();
     if (!el) return;
-    var text = serializeNode(el);
+    var cur = el.getAttribute('data-type');
     var md;
-    if (type === 'h1') md = '# ' + text;
-    else if (type === 'h2') md = '## ' + text;
-    else if (type === 'h3') md = '### ' + text;
-    else if (type === 'quote') md = '> ' + text.split('\n').join('\n> ');
-    else if (type === 'ul') md = '- ' + text.split('\n').join('\n- ');
-    else if (type === 'ol') md = '1. ' + text.split('\n').join('\n1. ');
-    else if (type === 'code') md = '```\n' + text + '\n```';
-    else md = stripMarkers(blockMD(el));
+
+    if (type === 'ul' || type === 'ol') {
+      var marker = type === 'ol' ? '1. ' : '- ';
+      if (cur === 'ul' || cur === 'ol') {
+        // 有序 <-> 无序互转：保留内容与缩进层级
+        md = blockMD(el).split('\n').map(function (l) {
+          return l.replace(/^(\s*)(?:[-*+]|\d+\.)\s+/, '$1' + marker);
+        }).join('\n');
+      } else {
+        md = serializeNode(el).split('\n').map(function (l) { return marker + l; }).join('\n');
+      }
+    } else if (cur === 'ul' || cur === 'ol') {
+      md = QN_CORE.stripMarkers(blockMD(el));          // 列表转段落
+    } else {
+      var text = serializeNode(el);
+      if (type === 'h1') md = '# ' + text;
+      else if (type === 'h2') md = '## ' + text;
+      else if (type === 'h3') md = '### ' + text;
+      else if (type === 'quote') md = '> ' + text.split('\n').join('\n> ');
+      else md = QN_CORE.stripMarkers(blockMD(el));
+    }
     renderInto(el, type, md);
     focusBlock(el);
     scheduleSave();
@@ -695,8 +593,6 @@
         if (k === 'b') { e.preventDefault(); execInline('bold'); return; }
         if (k === 'i') { e.preventDefault(); execInline('italic'); return; }
         if (k === 'x' && e.shiftKey) { e.preventDefault(); execInline('strikeThrough'); return; }
-        if (k === 'e') { e.preventDefault(); wrapCode(); return; }
-        if (k === 'k') { e.preventDefault(); insertLink(); return; }
         if (k === 's') { e.preventDefault(); flush(); return; }
         if (k === '1') { e.preventDefault(); applyBlockType('h1'); return; }
         if (k === '2') { e.preventDefault(); applyBlockType('h2'); return; }
@@ -709,27 +605,9 @@
       if (e.key === 'Backspace') { handleBackspace(e); return; }
       if (e.key === 'Tab') {
         e.preventDefault();
-        document.execCommand('insertText', false, '  ');
-        scheduleSave();
+        handleTab(e, !e.shiftKey);
+        return;
       }
-    });
-
-    // 工具栏
-    var tb = document.getElementById('qn-toolbar');
-    tb.addEventListener('click', function (e) {
-      var btn = e.target.closest ? e.target.closest('.qn-btn') : null;
-      if (!btn) return;
-      var cmd = btn.getAttribute('data-cmd');
-      if (cmd === 'bold') execInline('bold');
-      else if (cmd === 'italic') execInline('italic');
-      else if (cmd === 'strike') execInline('strikeThrough');
-      else if (cmd === 'code') wrapCode();
-      else if (cmd === 'link') insertLink();
-      else applyBlockType(cmd);
-    });
-    // mousedown 阻止按钮抢焦点
-    tb.addEventListener('mousedown', function (e) {
-      if (e.target.closest && e.target.closest('.qn-btn')) e.preventDefault();
     });
 
     // 任务勾选
