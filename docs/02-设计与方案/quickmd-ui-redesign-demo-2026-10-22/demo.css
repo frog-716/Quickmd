@@ -159,8 +159,9 @@ body {
   position: absolute;
   top: 15px;
   left: 20px;
-  color: var(--ink-faint);
+  color: var(--ink-soft);
   content: "从一行文字开始…";
+  font-size: 14.5px;
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
@@ -220,8 +221,9 @@ body {
 
 .qn-block ul,
 .qn-block ol {
+  --list-indent: 24px;
   margin: 7px 0;
-  padding-left: 24px;
+  padding-left: var(--list-indent);
 }
 
 .qn-block li { margin: 3px 0; }
@@ -267,7 +269,8 @@ body {
 .qn-block li.qn-task {
   display: flex;
   align-items: flex-start;
-  margin-left: -19px;
+  gap: 4px;
+  margin-left: calc(0px - var(--list-indent));
   list-style: none;
 }
 
@@ -276,7 +279,7 @@ body {
   width: 15px;
   height: 15px;
   flex: 0 0 auto;
-  margin: 4px 8px 0 0;
+  margin: 4px 0 0;
   border: 1.4px solid #9b9184;
   border-radius: 4px;
   cursor: pointer;

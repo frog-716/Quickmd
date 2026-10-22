@@ -25,3 +25,6 @@ docs/01-调研与选型/备忘录迁移Markdown-可行性评估.md
 xcuserdata/
 .idea/
 .vscode/
+
+# 图标生成的中间产物（由 tools/make-doc-icon.swift 重建）
+assets/icons/Quickmd.iconset/

@@ -114,23 +114,23 @@
       "start": {
         "file": "motion-entry-start.jpg",
         "source": "Page.screencastFrame",
-        "timeMs": 363
+        "timeMs": 134
       },
       "mid": {
         "file": "motion-entry-mid.jpg",
         "source": "Page.screencastFrame",
-        "timeMs": 378
+        "timeMs": 298
       },
       "end": {
         "file": "motion-entry-end.jpg",
         "source": "Page.captureScreenshot",
-        "timeMs": 1696
+        "timeMs": 2044
       }
     },
     "sampling": {
       "mode": "entry"
     },
-    "durationMs": 1696,
+    "durationMs": 2044,
     "consistency": {
       "status": "matched",
       "reference": "motion-entry-end.jpg",

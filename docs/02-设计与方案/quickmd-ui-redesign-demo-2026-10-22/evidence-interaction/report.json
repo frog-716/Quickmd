@@ -10,17 +10,17 @@
       "start": {
         "file": "motion-勾选第二项-start.jpg",
         "source": "Page.captureScreenshot",
-        "timeMs": 562
+        "timeMs": 1471
       },
       "mid": {
         "file": "motion-勾选第二项-mid.jpg",
         "source": "Page.screencastFrame",
-        "timeMs": 642
+        "timeMs": 2103
       },
       "end": {
         "file": "motion-勾选第二项-end.jpg",
         "source": "Page.captureScreenshot",
-        "timeMs": 1190
+        "timeMs": 2120
       }
     },
     "sampling": {
@@ -29,7 +29,7 @@
       "action": "click",
       "raw": "click '.qn-box >> nth=1'"
     },
-    "durationMs": 1190,
+    "durationMs": 2120,
     "sequence": {
       "file": "motion-勾选第二项-sequence.png",
       "width": 1416,
@@ -55,7 +55,7 @@
           "labelHeight": 32,
           "x": 370,
           "y": 24,
-          "label": "0.170 s",
+          "label": "0.303 s",
           "labelY": 317
         },
         {
@@ -66,7 +66,7 @@
           "labelHeight": 32,
           "x": 716,
           "y": 24,
-          "label": "0.340 s",
+          "label": "0.606 s",
           "labelY": 317
         },
         {
@@ -77,7 +77,7 @@
           "labelHeight": 32,
           "x": 1062,
           "y": 24,
-          "label": "0.510 s",
+          "label": "0.908 s",
           "labelY": 317
         },
         {
@@ -88,7 +88,7 @@
           "labelHeight": 32,
           "x": 24,
           "y": 357,
-          "label": "0.680 s",
+          "label": "1.211 s",
           "labelY": 650
         },
         {
@@ -99,7 +99,7 @@
           "labelHeight": 32,
           "x": 370,
           "y": 357,
-          "label": "0.850 s",
+          "label": "1.514 s",
           "labelY": 650
         },
         {
@@ -110,7 +110,7 @@
           "labelHeight": 32,
           "x": 716,
           "y": 357,
-          "label": "1.020 s",
+          "label": "1.817 s",
           "labelY": 650
         },
         {
@@ -121,7 +121,7 @@
           "labelHeight": 32,
           "x": 1062,
           "y": 357,
-          "label": "1.190 s",
+          "label": "2.120 s",
           "labelY": 650
         }
       ],
@@ -131,43 +131,47 @@
           "sourceTimeMs": 0
         },
         {
-          "timeMs": 170,
+          "timeMs": 303,
           "sourceTimeMs": 0
         },
         {
-          "timeMs": 340,
+          "timeMs": 606,
           "sourceTimeMs": 0
         },
         {
-          "timeMs": 510,
-          "sourceTimeMs": 0
+          "timeMs": 908,
+          "sourceTimeMs": 859
         },
         {
-          "timeMs": 680,
-          "sourceTimeMs": 676
+          "timeMs": 1211,
+          "sourceTimeMs": 859
         },
         {
-          "timeMs": 850,
-          "sourceTimeMs": 743
+          "timeMs": 1514,
+          "sourceTimeMs": 1446
         },
         {
-          "timeMs": 1020,
-          "sourceTimeMs": 743
+          "timeMs": 1817,
+          "sourceTimeMs": 1446
         },
         {
-          "timeMs": 1190,
-          "sourceTimeMs": 1190
+          "timeMs": 2120,
+          "sourceTimeMs": 2120
         }
       ]
     },
     "consistency": {
-      "status": "matched",
+      "status": "mismatch",
       "reference": "motion-勾选第二项-end.jpg",
-      "different": false,
-      "changedPixels": 0,
-      "maxTilePixels": 0,
-      "pixelRatio": 0
+      "different": true,
+      "changedPixels": 164,
+      "maxTilePixels": 85,
+      "pixelRatio": 0.001743753322700691,
+      "original": "record-勾选第二项-stream-end.jpg"
     },
+    "warnings": [
+      "录屏末帧与静止截图差异明显，可能没拍全；静止终态以 motion-勾选第二项-end.jpg 为准，已补为录像最后一帧，原末帧保留在 record-勾选第二项-stream-end.jpg；过渡请单独重录：node '/Users/frog/.agents/skills/oil-ui/scripts/shoot.mjs' 'docs/02-设计与方案/quickmd-ui-redesign-demo-2026-10-22/index.html' --timeout-scale 2 --out '/Users/frog/Projects/Quick-md/docs/02-设计与方案/quickmd-ui-redesign-demo-2026-10-22/evidence-interaction' --size '330x285' --zoom 1 --steps '勾选第二项: click '\\''.qn-box >> nth=1'\\''' --record --hold 2000"
+    ],
     "failed": true
   }
 ]
