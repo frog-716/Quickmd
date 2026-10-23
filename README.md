@@ -108,6 +108,10 @@ Quick-md/
 - 单活动文档：打开新文件即切换。
 - 面板尺寸固定 330×285（刘海下面就那么大）。
 
+## 📄 License
+
+本项目采用 [MIT License](LICENSE)。
+
 ---
 
 <p align="center"><sub>Quickmd · Markdown at the notch · macOS menu bar</sub></p>
