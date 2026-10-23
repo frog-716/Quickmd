@@ -1,11 +1,10 @@
 import AppKit
 
-/// 菜单栏：v3 精简到 5 项。
+/// 菜单栏：v3 精简到 4 项。
 ///
 ///   打开 / 关闭面板   —— 外接显示器（无刘海）时唯一的入口
 ///   打开 Markdown 文件…（⌘O）
 ///   开机自启          —— 勾选项，与系统「登录项」设置同步
-///   立即保存          （⌘S）
 ///   退出 Quickmd      （⌘Q）
 ///
 /// v2 里的「在 Finder 中显示」被砍：极简优先，需要时用菜单栏图标右键
@@ -16,7 +15,6 @@ final class StatusMenu: NSObject {
 
     var onTogglePanel: (() -> Void)?
     var onOpenFile: (() -> Void)?
-    var onSaveNow: (() -> Void)?
 
     override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -50,11 +48,6 @@ final class StatusMenu: NSObject {
         launch.state = loginItem.isEnabled ? .on : .off
         menu.addItem(launch)
 
-        let save = NSMenuItem(title: "立即保存",
-                              action: #selector(saveNow), keyEquivalent: "s")
-        save.target = self
-        menu.addItem(save)
-
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "退出 Quickmd",
@@ -69,8 +62,6 @@ final class StatusMenu: NSObject {
 
     @objc private func togglePanel() { onTogglePanel?() }
     @objc private func openFile() { onOpenFile?() }
-    @objc private func saveNow() { onSaveNow?() }
-
     @objc private func toggleLaunchAtLogin() {
         let want = !loginItem.isEnabled
         let ok = loginItem.setEnabled(want)

@@ -7,12 +7,13 @@
 一个常驻 macOS 菜单栏的超小进程：鼠标蹭一下屏幕顶部刘海 → 便签面板滑出（330×285pt，与系统「快速备忘录」同尺寸）→ 点一下就能打字 → Esc 收起，内容已自动存盘。
 
 - **编辑器**：分块 WYSIWYG Markdown（备忘录式手感），敲 `#` 前缀即变形，光标不跳
-- **交互**：v3 起**没有工具栏、没有功能按钮**——全部靠「前缀语法 + 快捷键」，界面只剩编辑区和一行状态栏
-- **视觉**：参考 macOS 备忘录——暖白纸面、大标题层级、宽松行距、底部细状态栏、柔和投影
+- **交互**：v3 起**没有工具栏、没有功能按钮**——全部靠「前缀语法 + 快捷键」，界面只剩编辑区
+- **视觉**：参考 macOS 备忘录——暖白纸面、大标题层级、宽松行距、柔和投影
 - **数据**：纯 `.md` 文件落在 `~/Documents/Quickmd/`，任何标准 Markdown 工具都能打开
 - **权限**：零辅助功能权限（30Hz 轮询鼠标位置，不用全局监听）
-- **开机自启**：首次运行自动注册登录项，菜单栏可随时开关
-- **体积**：App 264KB；内存空闲约 33MB（主进程 18MB + 编辑器 15MB）
+- **开机自启**：普通启动首次自动注册登录项，菜单栏可随时开关；开发启动会暂时关闭，避免旧版本或调试版跟着登录启动
+- **体积**：App 约 1.3MB（其中可执行文件 240KB、应用图标 1MB、编辑器资源 52KB）
+- **内存**：日常约 34MB（主进程 20MB + 编辑器 14MB）；装一份 77KB 的碎文档也只涨到 44MB
 
 ## 快速开始
 
@@ -21,6 +22,19 @@ cd Quickmd
 ./build.sh            # swift build -c release --disable-sandbox + 打包
 open Quickmd.app      # 运行
 ```
+
+## 开发时怎么启动和更新
+
+开发期间用这个入口：
+
+```bash
+cd Quickmd
+./dev.sh              # 先退出正在运行的版本，再重新构建并启动最新代码
+./dev.sh stop         # 只退出 Quickmd
+./dev.sh --show-now   # 重建启动，并附带一个诊断参数
+```
+
+每次改完代码再运行一次 `./dev.sh`，就会把新代码打进 App 并重新打开。开发启动会临时关闭开机自启；普通启动时恢复进入开发模式前的设置。如果此前从未正常启动过，首次普通启动仍会按默认设置开启自启。
 
 > SwiftPM 需要 `--disable-sandbox`（build.sh 已内置）；无需 Xcode，纯 Command Line Tools 可构建。
 > 首次运行会在 `~/Documents/Quickmd/` 创建 `scratch.md`（空白便签）。
@@ -46,7 +60,6 @@ open Quickmd.app      # 运行
 | 加粗 / 斜体 / 删除线 | `**文字**` `*文字*` `~~文字~~` | ⌘B / ⌘I / ⇧⌘X |
 | 分隔线 | `---` | — |
 | 列表续号 / 缩进 | 回车自动续号 | Tab / ⇧Tab |
-| 立即保存 | — | ⌘S |
 | 打开别的 .md | — | ⌘O（菜单栏图标 → 打开 Markdown 文件…） |
 | 关闭面板（自动存盘） | — | Esc |
 
@@ -58,7 +71,7 @@ open Quickmd.app      # 运行
 |---|---|
 | 呼出 / 收起 | **鼠标碰到刘海本体** / Esc |
 | 激活打字 | 点击面板（预览态不抢键盘焦点） |
-| 保存 | 停笔 0.4 秒自动存盘；⌘S 立即保存 |
+| 保存 | 停笔约 0.2 秒后自动存盘；不需要手动保存 |
 | 开机自启 | 菜单栏 Quickmd 图标 →「开机自启」勾选 |
 
 > **触发区说明（v3 收紧）**：热区只认「刘海本体」这一条带子（实测 179×36pt），
@@ -69,13 +82,16 @@ open Quickmd.app      # 运行
 
 ## 开机自启怎么控制
 
-三种方式，效果一致：
+目前没有单独的设置窗口；开机自启可以直接在菜单栏 Quickmd 菜单里开关。
+
+平时有两种方式管理：
 
 1. **App 菜单栏图标 →「开机自启」**（推荐）：勾选/取消即时生效
 2. **系统设置 → 通用 → 登录项**：能看到 Quickmd，随时关掉
-3. **命令行**：`QUICKMD_DEBUG=1 ./Quickmd.app/Contents/MacOS/Quickmd --logintest` 切换一次并打印结果
 
-首次运行会自动开启（这是本项目的既定功能）。技术实现是苹果官方 `SMAppService`（macOS 13+）；若注册失败会自动降级为 `~/Library/LaunchAgents` 里的 plist，功能不丢。
+普通方式首次运行会自动开启（这是本项目的既定功能）。技术实现是苹果官方 `SMAppService`（macOS 13+）；若注册失败会自动降级为 `~/Library/LaunchAgents` 里的 plist，功能不丢。开发时运行 `./dev.sh` 会暂时关闭开机自启；下一次普通启动会恢复进入开发模式前的设置。
+
+命令行自检：`QUICKMD_DEBUG=1 ./Quickmd.app/Contents/MacOS/Quickmd --logintest`。
 
 ## 目录导览
 
@@ -86,9 +102,7 @@ Quick-md/
 ├── docs/
 │   ├── 01-调研与选型/               # 前期调研：备忘录改 MD 可行性 ×2、中间层压力测试、
 │   │                                #   工具选择手册、flomo 拆解
-│   ├── 02-设计与方案/               # 技术方案、NotchNotes 刘海改造可行性
-│   ├── 03-使用与实现/               # MVP 使用说明、v2 实现说明、v3 手动测试清单
-│   └── 04-需求对齐/                 # v3 需求对齐清单与决策记录
+│   └── 03-使用与实现/               # 编辑器实现说明、v3 手动测试清单
 ├── assets/icons/                    # 应用图标（源图 + .icns）
 ├── tools/                           # 图标生成脚本（从源图裁剪合成，可复现）
 ├── memory/
@@ -98,6 +112,7 @@ Quick-md/
 └── Quickmd/                         # App 源码（SwiftPM）
     ├── Package.swift
     ├── build.sh
+    ├── dev.sh                       # 开发启动：停止旧版、重建并启动；支持 stop 和诊断参数
     ├── Info.plist
     ├── Sources/Quickmd/
     │   ├── main.swift               # 入口（只负责起 App）
@@ -124,7 +139,6 @@ QUICKMD_DEBUG=1 ./Quickmd.app/Contents/MacOS/Quickmd --clicktest   # 合成点�
 QUICKMD_DEBUG=1 ./Quickmd.app/Contents/MacOS/Quickmd --blockcount  # 块数诊断
 QUICKMD_DEBUG=1 ./Quickmd.app/Contents/MacOS/Quickmd --logintest   # 开机自启自检
 ./Quickmd.app/Contents/MacOS/Quickmd --shot                       # 面板截图 -> /tmp/quickmd-shot.png
-./Quickmd.app/Contents/MacOS/Quickmd --dark-shot                  # 深色面板截图 -> /tmp/quickmd-dark.png
 ```
 
 日志写在 `~/Documents/Quickmd/quickmd.log`。

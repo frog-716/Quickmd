@@ -5,8 +5,7 @@ import Foundation
 /// 职责单一：记住「现在是哪个文件」，负责读和写。写盘一律原子写
 /// （`atomically`），避免断电或崩溃时留下半截文件。
 ///
-/// 防抖只在 JS 端做一次（400ms），Swift 侧不再叠加延迟——
-/// v2 两层防抖叠加导致实际落盘最坏要 0.75 秒，比文档承诺的 0.4 秒慢。
+/// 防抖只在 JS 端做一次（200ms），Swift 收到消息后立即原子写盘。
 final class DocumentStore {
     private(set) var url: URL
     private let fileManager = FileManager.default

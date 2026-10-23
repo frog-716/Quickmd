@@ -26,7 +26,7 @@
 
   var editorRoot = null;
   var saveTimer = null;
-  var state = { file: '', dirty: false, lastSaved: null };
+  var state = { file: '' };
 
   /* ---------- 光标偏移（文本维度，跨 <br> 计数） ---------- */
 
@@ -178,14 +178,12 @@
         if (n.nodeType === 1) {
           var t = n.tagName.toLowerCase();
           if (t === 'ul' || t === 'ol') { nestedLists.push(n); continue; }
-          if (isTask && n.classList && n.classList.contains('qn-box')) continue;
         }
         body += serializeNode(n);
       }
       var prefix = (ordered ? (startNum + i) + '. ' : '- ');
       if (isTask) {
-        var box = li.querySelector('.qn-box');
-        prefix += (box && box.classList.contains('on') ? '[x] ' : '[ ] ');
+        prefix += (li.classList.contains('qn-done') ? '[x] ' : '[ ] ');
       }
       lines.push(pad + prefix + body);
       for (var k = 0; k < nestedLists.length; k++) {
@@ -262,27 +260,13 @@
     return parts.join('\n\n');
   }
 
-  function countText(md) {
-    var cjk = (md.match(/[㐀-鿿぀-ヿ가-힯]/g) || []).length;
-    var words = (md.replace(/[㐀-鿿぀-ヿ가-힯]/g, ' ')
-                   .match(/[A-Za-z0-9_'-]+/g) || []).length;
-    return cjk + words;
-  }
+  /* ---------- 编辑器状态 ---------- */
 
-  /* ---------- 状态栏 ---------- */
-
-  function updateStatus() {
+  function updateEditorState() {
     var md = getMarkdown();
-    var count = countText(md);
-    var el = document.getElementById('qn-count');
-    if (el) el.textContent = count + ' 字';
     var app = document.getElementById('qn-app');
     if (app) app.classList.toggle('is-empty', md.trim() === '');
     editorRoot.classList.toggle('is-empty', md.trim() === '');
-    var st = document.getElementById('qn-status');
-    if (st) st.classList.toggle('qn-dirty', state.dirty);
-    var sv = document.getElementById('qn-savestate');
-    if (sv) sv.textContent = state.dirty ? '未保存' : (state.lastSaved ? '已保存 ' + state.lastSaved : '就绪');
     var fn = document.getElementById('qn-file');
     if (fn) fn.textContent = state.file || '未命名';
   }
@@ -296,21 +280,15 @@
   }
 
   function scheduleSave(delay) {
-    state.dirty = true;
-    updateStatus();
+    updateEditorState();
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () { flush(); }, delay == null ? 400 : delay);
+    saveTimer = setTimeout(function () { flush(); }, delay == null ? 200 : delay);
   }
 
   function flush() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     var md = getMarkdown();
     post({ type: 'save', md: md });
-    state.dirty = false;
-    var d = new Date();
-    var p = function (n) { return (n < 10 ? '0' : '') + n; };
-    state.lastSaved = p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
-    updateStatus();
   }
 
   /* ---------- 「敲出前缀即变形」 ---------- */
@@ -373,7 +351,7 @@
 
   /* ---------- Enter：拆分块 / 续列表 ---------- */
 
-  // 列表项的纯文本（去掉勾选框和嵌套列表）
+  // 列表项的纯文本（去掉嵌套列表）
   function listItemText(li) {
     var out = '';
     for (var i = 0; i < li.childNodes.length; i++) {
@@ -381,7 +359,6 @@
       if (n.nodeType === 1) {
         var t = n.tagName.toLowerCase();
         if (t === 'ul' || t === 'ol') continue;                       // 嵌套列表不算本项内容
-        if (n.classList && n.classList.contains('qn-box')) continue;  // 勾选框不算
       }
       out += serializeNode(n);
     }
@@ -449,12 +426,8 @@
     var newLi = document.createElement('li');
     if (isTask) {
       newLi.className = 'qn-task';
-      var box = document.createElement('span');
-      box.className = 'qn-box';
-      box.setAttribute('contenteditable', 'false');
       var span = document.createElement('span');
       span.appendChild(frag);
-      newLi.appendChild(box);
       newLi.appendChild(span);
     } else {
       newLi.appendChild(frag);
@@ -651,12 +624,10 @@
     scheduleSave();
   }
 
-  function toggleTask(box) {
-    box.classList.toggle('on');
+  function toggleTask(task) {
+    task.classList.toggle('qn-done');
     // 已完成的项整行变淡。用 JS 加 class，而不是 CSS :has()——
     // 后者在老版本 WebKit 上不一定认。
-    var li = box.closest ? box.closest('li.qn-task') : null;
-    if (li) li.classList.toggle('qn-done', box.classList.contains('on'));
     scheduleSave();
     flush();
   }
@@ -686,7 +657,6 @@
         if (k === 'b') { e.preventDefault(); execInline('bold'); return; }
         if (k === 'i') { e.preventDefault(); execInline('italic'); return; }
         if (k === 'x' && e.shiftKey) { e.preventDefault(); execInline('strikeThrough'); return; }
-        if (k === 's') { e.preventDefault(); flush(); return; }
         if (k === '1') { e.preventDefault(); applyBlockType('h1'); return; }
         if (k === '2') { e.preventDefault(); applyBlockType('h2'); return; }
         if (k === '3') { e.preventDefault(); applyBlockType('h3'); return; }
@@ -705,8 +675,18 @@
 
     // 任务勾选
     editorRoot.addEventListener('click', function (e) {
-      var box = e.target.closest ? e.target.closest('.qn-box') : null;
-      if (box) { e.preventDefault(); toggleTask(box); }
+      var task = e.target.closest ? e.target.closest('li.qn-task') : null;
+      if (!task) return;
+      var taskRect = task.getBoundingClientRect();
+      var marker = window.getComputedStyle(task, '::before');
+      var markerLeft = taskRect.left + parseFloat(marker.left || '0');
+      var markerTop = taskRect.top + parseFloat(marker.top || '0');
+      var markerRight = markerLeft + parseFloat(marker.width || '0');
+      var markerBottom = markerTop + parseFloat(marker.height || '0');
+      if (e.clientX < markerLeft || e.clientX >= markerRight ||
+          e.clientY < markerTop || e.clientY >= markerBottom) return;
+      e.preventDefault();
+      toggleTask(task);
     });
 
     // 点击空白处聚焦最后一块
@@ -731,13 +711,11 @@
 
   function load(md, file) {
     state.file = file || '';
-    state.dirty = false;
-    state.lastSaved = null;
     editorRoot.innerHTML = '';
     var blocks = QN_CORE.parse(md || '');
     if (!blocks.length) blocks = [{ type: 'p', md: '' }];
     blocks.forEach(function (b) { editorRoot.appendChild(createBlockEl(b.type, b.md)); });
-    updateStatus();
+    updateEditorState();
   }
 
   function init() {

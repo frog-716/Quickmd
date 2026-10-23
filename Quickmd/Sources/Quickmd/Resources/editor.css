@@ -4,8 +4,8 @@
  *   - 暖白纸面（不是纯白），在刘海这种「浮在桌面上的小卡片」里更耐看
  *   - 标题字号拉大、字重分明，正文行高宽松，一眼能分清层级
  *   - 分隔用发丝线而不是重边框，整体克制
- *   - 底部状态栏是一条半透明细条，像备忘录底部的工具条
- * 配色跟随系统（prefers-color-scheme），容器圆角与阴影由 AppKit 提供。
+ * 固定浅色：不跟随系统深浅色。WebView 外观被强制为 aqua，
+ * 保证任何系统主题下都是同一张暖纸面。
  */
 
 :root {
@@ -13,7 +13,6 @@
   --qn-fg: #2b2926;            /* 正文 */
   --qn-fg-2: #6f6a63;          /* 次要文字 */
   --qn-fg-3: #a19a90;          /* 占位符 / 弱化 */
-  --qn-status-fg: #706a62;     /* 状态栏文字：小字号仍清楚 */
   --qn-control-border: #8c857b;
   --qn-accent: #0a7cff;        /* 强调 / 光标 */
   --qn-border: #e6e2da;        /* 发丝线 */
@@ -22,24 +21,6 @@
   --qn-quote-bar: #d6d0c4;
   --qn-sel: rgba(10, 124, 255, .18);
   --qn-shadow: rgba(0, 0, 0, .06);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --qn-bg: #1c1b19;
-    --qn-fg: #ede9e2;
-    --qn-fg-2: #a8a199;
-    --qn-fg-3: #746e66;
-    --qn-status-fg: #aaa39a;
-    --qn-control-border: #8f8980;
-    --qn-accent: #3b9eff;
-    --qn-border: #34322e;
-    --qn-border-soft: #292824;
-    --qn-code-bg: #26241f;
-    --qn-quote-bar: #4a463f;
-    --qn-sel: rgba(59, 158, 255, .28);
-    --qn-shadow: rgba(0, 0, 0, .4);
-  }
 }
 
 * { box-sizing: border-box; }
@@ -196,75 +177,40 @@ body {
 
 /* 任务列表勾选框：圆角小方块，未完成是空心描边 */
 .qn-block li.qn-task {
+  position: relative;
   list-style: none;
   margin-left: -19px;
-  display: flex;
-  align-items: flex-start;
+  display: block;
+  padding-left: 23px;
 }
-.qn-box {
-  flex: 0 0 auto;
+.qn-block li.qn-task::before {
+  position: absolute;
+  top: 4px;
+  left: 0;
   width: 15px; height: 15px;
-  margin: 4px 8px 0 0;
   border: 1.5px solid var(--qn-control-border);
   border-radius: 4.5px;
   cursor: pointer;
-  position: relative;
+  content: "";
   transition: background .12s ease, border-color .12s ease, filter .12s ease;
 }
-.qn-box:not(.on):hover { background: var(--qn-sel); border-color: var(--qn-accent); }
-.qn-box.on { background: var(--qn-accent); border-color: var(--qn-accent); }
-.qn-box.on:hover { filter: brightness(.92); }
-.qn-box.on::after {
-  content: "";
+.qn-block li.qn-task:not(.qn-done):hover::before {
+  border-color: var(--qn-accent);
+  background: var(--qn-sel);
+}
+.qn-block li.qn-task.qn-done::before {
+  border-color: var(--qn-accent);
+  background: var(--qn-accent);
+}
+.qn-block li.qn-task.qn-done:hover::before { filter: brightness(.92); }
+.qn-block li.qn-task.qn-done::after {
   position: absolute;
-  left: 4px; top: 1px;
+  left: 4px; top: 5px;
   width: 4.5px; height: 8.5px;
   border: solid #fff;
   border-width: 0 1.8px 1.8px 0;
+  content: "";
   transform: rotate(42deg);
 }
-.qn-task > span:last-child { flex: 1 1 auto; min-width: 0; }
-.qn-task.qn-done > span:last-child { color: var(--qn-fg-3); }
-
-/* ---------- 状态栏 ---------- */
-/* 备忘录底部工具条的质感：细、淡、贴着一条发丝线 */
-
-#qn-status {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 28px;
-  padding: 0 14px;
-  border-top: 1px solid var(--qn-border);
-  background: rgba(128, 122, 112, .06);
-  font-size: 12px;
-  line-height: 1;
-  color: var(--qn-status-fg);
-  user-select: none;
-  -webkit-user-select: none;
-}
-#qn-status .qn-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: #34c759;
-  flex: 0 0 auto;
-  box-shadow: 0 0 0 2px rgba(52, 199, 89, .2);
-}
-#qn-status.qn-dirty .qn-dot {
-  background: #ff9f0a;
-  box-shadow: 0 0 0 2px rgba(255, 159, 10, .2);
-}
-#qn-count { flex: 0 0 auto; }
-
-#qn-file {
-  flex: 0 1 auto;
-  margin-left: auto;
-  text-align: right;
-  font-size: 12px;
-  color: var(--qn-status-fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 52%;
-}
+.qn-task > span:first-child { display: block; min-width: 0; }
+.qn-task.qn-done > span:first-child { color: var(--qn-fg-3); }

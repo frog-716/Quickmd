@@ -187,9 +187,8 @@
       }
       var tm = it.text.match(/^\[( |x|X)\]\s*([\s\S]*)$/);
       if (tm) {
-        html += '<li class="qn-task">' +
-          '<span class="qn-box' + (tm[1].toLowerCase() === 'x' ? ' on' : '') +
-          '" contenteditable="false"></span>' +
+        // 勾选框交给 CSS 绘制，不放进可编辑 DOM，避免光标停在框左侧。
+        html += '<li class="qn-task' + (tm[1].toLowerCase() === 'x' ? ' qn-done' : '') + '">' +
           '<span>' + inline(tm[2]) + '</span>' + nested + '</li>';
       } else {
         html += '<li>' + inline(it.text) + nested + '</li>';

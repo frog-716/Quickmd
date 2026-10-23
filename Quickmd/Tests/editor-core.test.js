@@ -53,9 +53,9 @@ eq('块-空文档', QN.parse('').length, 0);
 
 has('渲染-h1', QN.renderBlock({type:'h1', md:'# T'}), '<h1>T</h1>');
 has('渲染-列表', QN.renderBlock({type:'ul', md:'- a\n- b'}), '<li>a</li><li>b</li>');
-has('渲染-任务未完成', QN.renderBlock({type:'ul', md:'- [ ] todo'}), 'qn-box');
-not('渲染-任务未完成无on', QN.renderBlock({type:'ul', md:'- [ ] todo'}), 'qn-box on');
-has('渲染-任务已完成', QN.renderBlock({type:'ul', md:'- [x] done'}), 'qn-box on');
+has('渲染-任务未完成状态类', QN.renderBlock({type:'ul', md:'- [ ] todo'}), 'qn-task');
+not('渲染-任务未完成无完成态', QN.renderBlock({type:'ul', md:'- [ ] todo'}), 'qn-task qn-done');
+has('渲染-任务已完成状态类', QN.renderBlock({type:'ul', md:'- [x] done'}), 'qn-task qn-done');
 has('渲染-代码', QN.renderBlock({type:'code', md:'```\nlet a=1;\n```'}), '<code>let a=1;</code>');
 has('渲染-引用', QN.renderBlock({type:'quote', md:'> hi'}), '<blockquote>');
 eq('渲染-分隔线', QN.renderBlock({type:'hr', md:'---'}), '<hr>');
@@ -107,14 +107,14 @@ eq('代码-语言解析', QN.parse('```swift\nlet a=1\n```')[0].md.split('\n')[0
 // ---- 任务列表标记往返 ----
 var taskDoc = '- [ ] 未完成\n- [x] 已完成';
 var tb = QN.parse(taskDoc);
-has('任务-渲染未完成', QN.renderBlock(tb[0]), 'qn-box');
-has('任务-渲染已完成', QN.renderBlock(tb[0]), 'qn-box on');
+has('任务-渲染未完成状态类', QN.renderBlock(tb[0]), 'qn-task');
+has('任务-渲染已完成状态类', QN.renderBlock(tb[0]), 'qn-task qn-done');
 has('任务-md保留', tb[0].md, '[x] 已完成');
 
 // ---- v3 新增：任务列表前缀（- [ ] 空格）能被解析成任务项 ----
 var taskPrefix = QN.parse('- [ ] 待办');
 eq('任务前缀-类型ul', taskPrefix[0].type, 'ul');
-has('任务前缀-渲染出勾选框', QN.renderBlock(taskPrefix[0]), 'qn-box');
+has('任务前缀-渲染任务项', QN.renderBlock(taskPrefix[0]), 'qn-task');
 has('任务前缀-正文保留', QN.renderBlock(taskPrefix[0]), '待办');
 
 // ---- v3 新增：缩进层级在 md 里的表达（Tab 一次 = 两个空格）----

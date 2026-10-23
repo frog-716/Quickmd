@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isPinned = false
     private var editorReady = false
     private var pendingContent: String?
+    private var isDevelopmentMode: Bool { CommandLine.arguments.contains("--dev") }
 
     // MARK: - 生命周期
 
@@ -53,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupWebView()
         setupStatusMenu()
         setupTriggers()
-        setupLaunchAtLoginFirstRun()
+        configureLaunchAtLogin()
         loadStoreIntoEditor()
 
         runDiagnosticsIfRequested()
@@ -92,7 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         panel.contentView = container
 
-        // 边缘补一圈发丝线，让卡片在深色桌面上有清晰边界（备忘录质感）
+        // 边缘补一圈发丝线，让卡片在任意底色的桌面上都有清晰边界（备忘录质感）
         container.layer?.borderWidth = 0.5
         container.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
     }
@@ -106,6 +107,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wv.setValue(false, forKey: "drawsBackground")
         wv.autoresizingMask = [.width, .height]
         wv.allowsMagnification = false
+        // 固定浅色外观：编辑器不跟随系统深浅色，任何主题下都是同一张暖纸面
+        wv.appearance = NSAppearance(named: .aqua)
         // WebView 自己裁圆角（容器不裁，因为容器要留投影）
         wv.wantsLayer = true
         wv.layer?.cornerRadius = 14
@@ -124,13 +127,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - 开机自启
 
-    /// 首次运行默认开启开机自启（这是本项目明确要的功能）。
-    /// 之后不再自动改动——用户在菜单栏勾选框或系统「登录项」里自行开关。
-    private func setupLaunchAtLoginFirstRun() {
+    /// 普通启动首次开启开机自启；开发脚本启动时关闭，避免调试版本常驻登录项。
+    /// 开发模式暂存原状态；普通启动时恢复，保留用户之前的选择。
+    private func configureLaunchAtLogin() {
         let key = "quickmd.launchAtLoginInitialized"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
-        UserDefaults.standard.set(true, forKey: key)
-        let ok = LoginItemController().setEnabled(true)
+        let restoreKey = "quickmd.launchAtLoginBeforeDevelopment"
+        let initializedBeforeDevelopmentKey = "quickmd.launchAtLoginInitializedBeforeDevelopment"
+        let defaults = UserDefaults.standard
+        let loginItem = LoginItemController()
+
+        if isDevelopmentMode {
+            if defaults.object(forKey: restoreKey) == nil {
+                defaults.set(loginItem.isEnabled, forKey: restoreKey)
+                defaults.set(defaults.bool(forKey: key), forKey: initializedBeforeDevelopmentKey)
+            }
+            _ = loginItem.setEnabled(false)
+            statusMenu.rebuild()
+            log("开发模式：暂时关闭开机自启；普通启动时恢复原设置")
+            return
+        }
+
+        if let wasEnabled = defaults.object(forKey: restoreKey) as? Bool {
+            let wasInitialized = defaults.bool(forKey: initializedBeforeDevelopmentKey)
+            defaults.removeObject(forKey: restoreKey)
+            defaults.removeObject(forKey: initializedBeforeDevelopmentKey)
+
+            if wasInitialized {
+                _ = loginItem.setEnabled(wasEnabled)
+            } else {
+                // 如果开发模式之前从未正常启动，首次正常启动仍按默认开启处理。
+                _ = loginItem.setEnabled(true)
+            }
+            defaults.set(true, forKey: key)
+            statusMenu.rebuild()
+            log("普通启动：已恢复开机自启设置")
+            return
+        }
+
+        guard !defaults.bool(forKey: key) else { return }
+        defaults.set(true, forKey: key)
+        let ok = loginItem.setEnabled(true)
         log("首次运行：开机自启\(ok ? "已开启" : "开启失败")")
     }
 
@@ -139,7 +175,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupStatusMenu() {
         statusMenu.onTogglePanel = { [weak self] in self?.togglePanel() }
         statusMenu.onOpenFile = { [weak self] in self?.openDocumentViaPanel() }
-        statusMenu.onSaveNow = { [weak self] in self?.flushSave() }
     }
 
     // MARK: - 触发
@@ -206,7 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let screen = trigger.builtInScreen() else { return }
         let x = trigger.notchCenterX(for: screen) - panelSize.width / 2
         // 顶边贴在刘海下沿（再减 safeAreaInsets.top），
-        // 否则 32pt 深的刘海会盖住面板顶部的工具栏。
+        // 否则 32pt 深的刘海会盖住面板顶部的正文。
         let y = screen.frame.maxY - screen.safeAreaInsets.top - panelSize.height
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
@@ -232,7 +267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "(function(){var b=document.querySelector('.qn-block'); if(b){b.focus();}})()")
     }
 
-    /// 立即落盘（Esc / ⌘S / 切换文档 / 退出时调用）。
+    /// 立即落盘（收起面板 / 切换文档 / 退出时调用，防止最后输入未写入）。
     /// 防抖已在 JS 端做，这里不再叠加延迟。
     private func flushSave() {
         guard editorReady else { return }
@@ -334,20 +369,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-        if CommandLine.arguments.contains("--dark-shot") {
-            // 深色外观截图：强制 WebView 走暗色外观（CSS 里的 prefers-color-scheme
-            // 就会切到深色分支），便于检查暗色下的对比度。
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-                guard let self else { return }
-                self.webView.appearance = NSAppearance(named: .darkAqua)
-                self.showPanelIfNeeded()
-                self.activatePanel()
-                self.pushToEditor(Self.sampleDocument, file: "sample.md")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
-                    self?.capturePanelShot(named: "quickmd-dark")
-                }
-            }
-        }
         if CommandLine.arguments.contains("--mdtest") {            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
                 self?.runMarkdownRoundTrip()
             }
@@ -441,7 +462,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             var el = document.querySelector('.qn-block');
             typeInto(el, '- [ ] 买牛奶');
             return el.getAttribute('data-type')
-                   + '/有勾选框=' + (el.innerHTML.indexOf('qn-box') >= 0)
+                   + '/有任务项=' + (el.innerHTML.indexOf('qn-task') >= 0)
                    + '/文本=' + el.textContent;
           });
 
@@ -539,11 +560,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// 诊断：把当前面板渲染成 PNG，存到 /tmp/quickmd-shot.png。
     /// 用途：肉眼检查 UI 质感——字号层级、行距、圆角、纸面颜色。
-    private func capturePanelShot(named name: String = "quickmd-shot") {
+    private func capturePanelShot() {
         guard let rep = container.bitmapImageRepForCachingDisplay(in: container.bounds) else { return }
         container.cacheDisplay(in: container.bounds, to: rep)
         guard let png = rep.representation(using: .png, properties: [:]) else { return }
-        let out = URL(fileURLWithPath: "/tmp/\(name).png")
+        let out = URL(fileURLWithPath: "/tmp/quickmd-shot.png")
         try? png.write(to: out)
         log("截图已保存 \(out.path)")
         print("截图已保存 \(out.path)")

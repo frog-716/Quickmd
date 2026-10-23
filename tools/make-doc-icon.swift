@@ -18,7 +18,7 @@ import Foundation
 let root = "/Users/frog/Projects/Quick-md"
 let srcPath = "\(root)/assets/icons/source-reference.jpg"
 let outDir = "\(root)/assets/icons/Quickmd.iconset"
-let previewPath = "\(root)/assets/preview/icon-new.png"
+let previewPath = "/tmp/quickmd-icon-preview.png"
 
 guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: srcPath) as CFURL, nil),
       let img = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
