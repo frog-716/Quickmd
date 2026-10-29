@@ -1,26 +1,29 @@
 /* Quickmd 编辑器样式
  * ---------------------------------------------------------------------------
- * 视觉参考：macOS 备忘录（Notes.app）
+ * 视觉参考：macOS 备忘录（Notes.app）+ 访达侧栏
  *   - 暖白纸面（不是纯白），在刘海这种「浮在桌面上的小卡片」里更耐看
  *   - 标题字号拉大、字重分明，正文行高宽松，一眼能分清层级
- *   - 分隔用发丝线而不是重边框，整体克制
- * 固定浅色：不跟随系统深浅色。WebView 外观被强制为 aqua，
- * 保证任何系统主题下都是同一张暖纸面。
+ *   - 侧栏比纸面深一档，靠明度差分区，不靠重边框
+ *   - 分隔用发丝线，整体克制
+ * 固定浅色：不跟随系统深浅色。WebView 外观被强制为 aqua。
  */
 
 :root {
-  --qn-bg: #faf9f6;            /* 纸面 */
+  --qn-bg: #fbfaf7;            /* 纸面 */
+  --qn-side-bg: #f2f0ea;       /* 侧栏（比纸面深一档） */
   --qn-fg: #2b2926;            /* 正文 */
   --qn-fg-2: #6f6a63;          /* 次要文字 */
   --qn-fg-3: #a19a90;          /* 占位符 / 弱化 */
   --qn-control-border: #8c857b;
   --qn-accent: #0a7cff;        /* 强调 / 光标 */
-  --qn-border: #e6e2da;        /* 发丝线 */
-  --qn-border-soft: #efebe4;
+  --qn-border: #e5e1d9;        /* 发丝线 */
+  --qn-border-soft: #eeebe4;
   --qn-code-bg: #f2efe8;
   --qn-quote-bar: #d6d0c4;
   --qn-sel: rgba(10, 124, 255, .18);
   --qn-shadow: rgba(0, 0, 0, .06);
+  --qn-hover: rgba(0, 0, 0, .035);
+  --qn-active: rgba(10, 124, 255, .10);
 }
 
 * { box-sizing: border-box; }
@@ -40,47 +43,299 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-feature-settings: "kern";
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-/* 选中态：用低饱和蓝，和光标同一个色系 */
 ::selection { background: var(--qn-sel); }
+
+/* ============================ 布局 ============================ */
 
 #qn-app {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100%;
   overflow: hidden;
 }
 
-/* ---------- 编辑区 ---------- */
+#qn-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;               /* 允许收缩，否则长文件名会把编辑区挤没 */
+  height: 100%;
+  background: var(--qn-bg);
+}
+
+/* 快捕态：侧栏整个收起，编辑区独占 */
+#qn-app[data-mode="capture"] #qn-side { display: none; }
+#qn-app[data-mode="browse"] #qn-expand { display: none; }
+
+/* ============================ 侧栏 ============================ */
+
+#qn-side {
+  flex: 0 0 218px;
+  width: 218px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--qn-side-bg);
+  border-right: 1px solid var(--qn-border);
+  overflow: hidden;
+}
+
+.qn-side-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 6px;
+  flex: 0 0 auto;
+}
+
+.qn-dir-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -.005em;
+  color: var(--qn-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 2px;
+}
+
+.qn-icon-btn {
+  flex: 0 0 auto;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--qn-fg-2);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.qn-icon-btn:hover { background: var(--qn-hover); color: var(--qn-fg); }
+.qn-icon-btn:active { background: rgba(0, 0, 0, .08); }
+
+.qn-mini-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--qn-fg-2);
+  font: inherit;
+  font-size: 10.5px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 5px;
+  cursor: default;
+}
+.qn-mini-btn:hover { background: var(--qn-hover); color: var(--qn-fg); }
+
+/* 搜索框 */
+.qn-search-wrap {
+  flex: 0 0 auto;
+  padding: 0 8px 8px;
+}
+#qn-search {
+  width: 100%;
+  appearance: none;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, .72);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--qn-fg);
+  padding: 4px 8px;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+#qn-search::placeholder { color: var(--qn-fg-3); }
+#qn-search:focus {
+  border-color: rgba(10, 124, 255, .55);
+  background: #fff;
+  box-shadow: 0 0 0 2.5px rgba(10, 124, 255, .14);
+}
+
+/* 分组 */
+.qn-group {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 0 auto;
+  padding-bottom: 2px;
+}
+.qn-group-files {
+  flex: 1 1 auto;
+  padding-bottom: 8px;
+}
+
+.qn-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: var(--qn-fg-3);
+  text-transform: none;
+  flex: 0 0 auto;
+}
+
+.qn-list {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+/* 行：图标 + 名称 + 右侧时间 */
+.qn-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px 0 10px;
+  margin: 1px 6px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--qn-fg);
+  cursor: default;
+  position: relative;
+  white-space: nowrap;
+}
+.qn-row:hover { background: var(--qn-hover); }
+.qn-row.is-active { background: var(--qn-active); }
+.qn-row.is-active::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 5px;
+  bottom: 5px;
+  width: 2.5px;
+  border-radius: 2px;
+  background: var(--qn-accent);
+}
+.qn-row .qn-row-icon {
+  flex: 0 0 auto;
+  color: var(--qn-fg-3);
+  display: flex;
+  align-items: center;
+}
+.qn-row.is-active .qn-row-icon { color: var(--qn-accent); }
+.qn-row .qn-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qn-row.is-active .qn-row-name { font-weight: 500; }
+.qn-row .qn-row-meta {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--qn-fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.qn-empty {
+  padding: 10px 14px;
+  font-size: 11.5px;
+  color: var(--qn-fg-3);
+  line-height: 1.6;
+}
+
+/* 快捷目录行的「移除」小按钮：hover 才出现 */
+.qn-row .qn-row-x {
+  display: none;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  line-height: 15px;
+  text-align: center;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--qn-fg-3);
+}
+.qn-row:hover .qn-row-x { display: block; }
+.qn-row .qn-row-x:hover { background: rgba(0, 0, 0, .1); color: var(--qn-fg); }
+
+/* ============================ 右键菜单 ============================ */
+
+.qn-menu {
+  position: fixed;
+  z-index: 999;
+  min-width: 132px;
+  padding: 4px;
+  background: rgba(252, 251, 249, .98);
+  border: 1px solid var(--qn-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .16), 0 1px 0 rgba(255, 255, 255, .8) inset;
+  font-size: 12px;
+}
+.qn-menu[hidden] { display: none; }
+.qn-menu-item {
+  padding: 5px 9px;
+  border-radius: 5px;
+  color: var(--qn-fg);
+  white-space: nowrap;
+}
+.qn-menu-item:hover { background: var(--qn-accent); color: #fff; }
+.qn-menu-item.is-danger { color: #d03a29; }
+.qn-menu-item.is-danger:hover { background: #d03a29; color: #fff; }
+.qn-menu-sep { height: 1px; margin: 4px 6px; background: var(--qn-border); }
+
+/* ============================ 编辑区 ============================ */
 
 #qn-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
-  /* 细滚动条：默认样式在小面板里太粗 */
   scrollbar-width: thin;
   scrollbar-color: rgba(128, 122, 112, .38) transparent;
 }
-#qn-scroll::-webkit-scrollbar { width: 8px; }
-#qn-scroll::-webkit-scrollbar-track { background: transparent; }
-#qn-scroll::-webkit-scrollbar-thumb {
+#qn-scroll::-webkit-scrollbar,
+.qn-list::-webkit-scrollbar { width: 8px; }
+#qn-scroll::-webkit-scrollbar-track,
+.qn-list::-webkit-scrollbar-track { background: transparent; }
+#qn-scroll::-webkit-scrollbar-thumb,
+.qn-list::-webkit-scrollbar-thumb {
   background: rgba(128, 122, 112, .34);
   border: 2px solid transparent;
   border-radius: 4px;
   background-clip: content-box;
 }
-#qn-scroll::-webkit-scrollbar-thumb:hover { background: rgba(128, 122, 112, .55); background-clip: content-box; }
+#qn-scroll::-webkit-scrollbar-thumb:hover,
+.qn-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 122, 112, .55);
+  background-clip: content-box;
+}
 
 #qn-editor {
   /* 撑满滚动区：否则内容下方空白属于 #qn-scroll，
-     「点击空白聚焦最后一块」就点不到（v3 修复） */
+     「点击空白聚焦最后一块」就点不到 */
   min-height: 100%;
   position: relative;
-  padding: 18px 22px 30px;
+  padding: 18px 22px 34px;
   outline: none;
   caret-color: var(--qn-accent);
+  -webkit-user-select: text;
+  user-select: text;
 }
+/* 浏览态：正文区域变大，留白跟着放大，阅读区不被侧栏挤成一条 */
+#qn-app[data-mode="browse"] #qn-editor {
+  padding: 26px 34px 48px;
+  max-width: 720px;
+}
+
 #qn-editor.is-empty::before {
   content: "开始写点什么…";
   position: absolute;
@@ -91,6 +346,74 @@ body {
   user-select: none;
   -webkit-user-select: none;
 }
+#qn-app[data-mode="browse"] #qn-editor.is-empty::before { left: 34px; top: 26px; }
+
+/* ============================ 状态栏 ============================ */
+
+#qn-status {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px 0 14px;
+  border-top: 1px solid var(--qn-border);
+  background: rgba(251, 250, 247, .88);
+  font-size: 10.5px;
+  color: var(--qn-fg-3);
+}
+
+#qn-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34c759;
+  box-shadow: 0 0 0 2px rgba(52, 199, 89, .16);
+  transition: background .15s ease, box-shadow .15s ease;
+}
+#qn-status.is-dirty #qn-dot {
+  background: #ff9f0a;
+  box-shadow: 0 0 0 2px rgba(255, 159, 10, .18);
+}
+/* 当前文件在磁盘上被删掉了：停写 + 红灯，别让用户以为还在正常存盘 */
+#qn-status.is-warn #qn-dot {
+  background: #ff453a;
+  box-shadow: 0 0 0 2px rgba(255, 69, 58, .18);
+}
+#qn-status.is-warn #qn-save { color: #c0392b; }
+
+#qn-save { flex: 0 0 auto; }
+#qn-file {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--qn-fg-3);
+}
+/* 「文件」是快捕态下通往浏览态的唯一入口，不能做成隐形文字，
+   否则用户根本发现不了这个 App 还能浏览文件夹。做成可见的小胶囊。 */
+#qn-expand {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 0 8px;
+  margin-left: 6px;
+  font-size: 10.5px;
+  height: 19px;
+  border: 1px solid var(--qn-border);
+  border-radius: 5px;
+  color: var(--qn-fg-2);
+  background: rgba(255, 255, 255, .7);
+}
+#qn-expand:hover {
+  background: var(--qn-hover);
+  color: var(--qn-fg);
+  border-color: rgba(0, 0, 0, .16);
+}
+
+/* ============================ 块 ============================ */
 
 .qn-block {
   position: relative;
@@ -99,27 +422,33 @@ body {
   border-radius: 5px;
   word-break: break-word;
   white-space: pre-wrap;
+  -webkit-user-select: text;
+  user-select: text;
 }
 .qn-block:focus { outline: none; }
 
-/* 标题：靠字号和字重拉开层级，不加装饰 */
-.qn-block h1, .qn-block h2, .qn-block h3 {
+.qn-block h1, .qn-block h2, .qn-block h3, .qn-block h4, .qn-block h5, .qn-block h6 {
   margin: 0;
   font-weight: 600;
   line-height: 1.32;
   letter-spacing: -.01em;
 }
-.qn-block h1 {
-  font-size: 21px;
-  margin: 18px 0 2px;
-  font-weight: 700;
-  letter-spacing: -.022em;
-}
+.qn-block h1 { font-size: 21px; margin: 18px 0 2px; font-weight: 700; letter-spacing: -.022em; }
 .qn-block h2 { font-size: 17px; margin: 15px 0 1px; letter-spacing: -.015em; }
 .qn-block h3 { font-size: 15px; margin: 13px 0 1px; }
+.qn-block h4 { font-size: 14px; margin: 12px 0 1px; color: var(--qn-fg); }
+.qn-block h5 { font-size: 13px; margin: 10px 0 0; color: var(--qn-fg-2); }
+.qn-block h6 { font-size: 12px; margin: 9px 0 0; color: var(--qn-fg-2); text-transform: uppercase; letter-spacing: .04em; }
 .qn-block:first-child h1,
 .qn-block:first-child h2,
-.qn-block:first-child h3 { margin-top: 4px; }
+.qn-block:first-child h3,
+.qn-block:first-child h4,
+.qn-block:first-child h5,
+.qn-block:first-child h6 { margin-top: 4px; }
+
+/* 浏览态标题再大一档：空间够了，层级可以更明确 */
+#qn-app[data-mode="browse"] .qn-block h1 { font-size: 24px; }
+#qn-app[data-mode="browse"] .qn-block h2 { font-size: 19px; }
 
 .qn-block p { margin: 0; }
 
@@ -131,10 +460,7 @@ body {
 }
 .qn-block blockquote p { margin: 0; }
 
-.qn-block ul, .qn-block ol {
-  margin: 4px 0;
-  padding-left: 25px;
-}
+.qn-block ul, .qn-block ol { margin: 4px 0; padding-left: 25px; }
 .qn-block li { margin: 2px 0; }
 .qn-block li::marker { color: var(--qn-fg-3); }
 
@@ -172,10 +498,50 @@ body {
 
 .qn-block a { color: var(--qn-accent); text-decoration: none; }
 .qn-block a:hover { text-decoration: underline; }
-
 .qn-block del { color: var(--qn-fg-2); }
 
-/* 任务列表勾选框：圆角小方块，未完成是空心描边 */
+/* ---------- 表格 ----------
+ * 单元格各自 contenteditable，用 table-layout: fixed 保证加字不会让列宽跳动。 */
+.qn-block table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  table-layout: fixed;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.qn-block th, .qn-block td {
+  border: 1px solid var(--qn-border);
+  padding: 5px 9px;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+  white-space: pre-wrap;
+  min-width: 0;
+}
+.qn-block th {
+  background: #f5f2ec;
+  font-weight: 600;
+}
+.qn-block th:focus, .qn-block td:focus {
+  outline: 2px solid var(--qn-sel);
+  outline-offset: -2px;
+}
+
+/* ---------- 图片 ---------- */
+.qn-block img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  display: block;
+  margin: 6px 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+}
+/* 图片块在编辑器里选中时给个提示框，方便点中删除 */
+.qn-block[data-type="image"] { padding: 2px; }
+.qn-block[data-type="image"]:focus { outline: 2px solid var(--qn-sel); border-radius: 8px; }
+
+/* ---------- 任务列表 ---------- */
 .qn-block li.qn-task {
   position: relative;
   list-style: none;

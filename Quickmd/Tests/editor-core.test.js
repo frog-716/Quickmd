@@ -141,5 +141,44 @@ eq('互转-转无序保缩进', QN.toBullet('1. 甲\n   2. 乙'), '- 甲\n   - �
 eq('降级-多行列表去干净', QN.stripMarkers('1. 甲\n2. 乙'), '甲\n乙');
 eq('降级-任务行去标记', QN.stripMarkers('- [ ] 待办'), '待办');
 
+// ---- v4 新增：表格 ----
+const tbl = '| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |';
+eq('表格-解析为table', QN.parse(tbl)[0].type, 'table');
+eq('表格-解析块数', QN.parse(tbl).length, 1);
+has('表格-渲染表头', QN.renderBlock(QN.parse(tbl)[0]), '<th>甲</th>');
+has('表格-渲染单元', QN.renderBlock(QN.parse(tbl)[0]), '<td>1</td>');
+has('表格-有tbody', QN.renderBlock(QN.parse(tbl)[0]), '<tbody>');
+// 行数不齐时不崩，按表头列数补齐
+const rag = '| 甲 | 乙 |\n| --- | --- |\n| 1 |';
+eq('表格-缺列不崩', (QN.renderBlock(QN.parse(rag)[0]).match(/<td>/g) || []).length + 0, 2);
+// 对齐
+has('表格-居中对齐', QN.renderBlock(QN.parse('| a |\n| :---: |\n| 1 |')[0]), 'text-align:center');
+has('表格-右对齐', QN.renderBlock(QN.parse('| a |\n| ---: |\n| 1 |')[0]), 'text-align:right');
+// 没有分隔行的 | 行不当表格（避免误判随手打的竖线）
+eq('表格-无分隔行降级为段落', QN.parse('| 随意 | 一行 |')[0].type, 'p');
+// 单元格里的转义竖线
+eq('表格-拆行支持转义竖线', QN.splitTableRow('| a \\| b | c |').join('|'), 'a | b|c');
+eq('表格-分隔行识别', QN.isTableSeparator('| --- | :---: |'), true);
+eq('表格-普通行不是分隔行', QN.isTableSeparator('| 甲 | 乙 |'), false);
+
+// ---- v4 新增：图片 ----
+eq('图片-独占行成块', QN.parse('![猫](assets/a.png)')[0].type, 'image');
+has('图片-渲染src', QN.renderBlock(QN.parse('![猫](assets/a.png)')[0]), 'src="assets/a.png"');
+has('图片-保留data-rel', QN.renderBlock(QN.parse('![猫](assets/a.png)')[0]), 'data-rel="assets/a.png"');
+has('图片-保留alt', QN.renderBlock(QN.parse('![猫](assets/a.png)')[0]), 'alt="猫"');
+// 行内图片（和文字同一行）
+has('图片-行内渲染', QN.inline('看这个 ![猫](a.png) 图'), '<img');
+eq('图片-行内不拆块', QN.parse('看这个 ![猫](a.png) 图').length, 1);
+// 协议白名单仍然生效
+not('图片-拦截javascript', QN.renderBlock({ type: 'image', md: '![x](javascript:alert(1))' }), 'javascript:');
+
+// ---- v4 新增：标题 1-6 级 ----
+eq('标题-四级解析', QN.parse('#### 四')[0].type, 'h4');
+eq('标题-六级解析', QN.parse('###### 六')[0].type, 'h6');
+has('标题-四级渲染', QN.renderBlock(QN.parse('#### 四')[0]), '<h4>四</h4>');
+has('标题-六级渲染', QN.renderBlock(QN.parse('###### 六')[0]), '<h6>六</h6>');
+// 七级不是标题（CommonMark 只到 6）
+eq('标题-七级降级为段落', QN.parse('####### 七')[0].type, 'p');
+
 console.log('\n===== ' + pass + ' 通过, ' + fail + ' 失败 =====');
 process.exit(fail ? 1 : 0);

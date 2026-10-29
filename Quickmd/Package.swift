@@ -11,6 +11,7 @@ let package = Package(
                 .copy("Resources/editor.html"),
                 .copy("Resources/editor-core.js"),
                 .copy("Resources/editor.js"),
+                .copy("Resources/workspace.js"),
                 .copy("Resources/editor.css"),
             ]
         )

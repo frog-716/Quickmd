@@ -1,20 +1,21 @@
 import AppKit
 
-/// 菜单栏：v3 精简到 4 项。
+/// 菜单栏：5 项。
 ///
 ///   打开 / 关闭面板   —— 外接显示器（无刘海）时唯一的入口
+///   打开文件列表      —— 展开成浏览态（等同面板里点「全部文件」）
 ///   打开 Markdown 文件…（⌘O）
+///   选择工作文件夹…    —— 换一个目录当工作区，自动钉进快捷目录
 ///   开机自启          —— 勾选项，与系统「登录项」设置同步
 ///   退出 Quickmd      （⌘Q）
-///
-/// v2 里的「在 Finder 中显示」被砍：极简优先，需要时用菜单栏图标右键
-/// 或直接在访达里找 ~/Documents/Quickmd 即可。
 final class StatusMenu: NSObject {
     private let statusItem: NSStatusItem
     private let loginItem = LoginItemController()
 
     var onTogglePanel: (() -> Void)?
     var onOpenFile: (() -> Void)?
+    var onBrowse: (() -> Void)?
+    var onChooseFolder: (() -> Void)?
 
     override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -35,10 +36,20 @@ final class StatusMenu: NSObject {
         toggle.target = self
         menu.addItem(toggle)
 
+        let browse = NSMenuItem(title: "打开文件列表",
+                                action: #selector(browse), keyEquivalent: "b")
+        browse.target = self
+        menu.addItem(browse)
+
         let open = NSMenuItem(title: "打开 Markdown 文件…",
                               action: #selector(openFile), keyEquivalent: "o")
         open.target = self
         menu.addItem(open)
+
+        let folder = NSMenuItem(title: "选择工作文件夹…",
+                                action: #selector(chooseFolder), keyEquivalent: "")
+        folder.target = self
+        menu.addItem(folder)
 
         menu.addItem(.separator())
 
@@ -62,6 +73,8 @@ final class StatusMenu: NSObject {
 
     @objc private func togglePanel() { onTogglePanel?() }
     @objc private func openFile() { onOpenFile?() }
+    @objc private func browse() { onBrowse?() }
+    @objc private func chooseFolder() { onChooseFolder?() }
     @objc private func toggleLaunchAtLogin() {
         let want = !loginItem.isEnabled
         let ok = loginItem.setEnabled(want)

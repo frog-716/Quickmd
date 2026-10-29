@@ -7,13 +7,57 @@
 <link rel="stylesheet" href="editor.css">
 </head>
 <body>
-<div id="qn-app">
-  <!-- v3：工具栏整体移除，功能全部走「前缀语法 + 快捷键」 -->
-  <div id="qn-scroll">
-    <div id="qn-editor"></div>
-  </div>
+<!--
+  data-mode 控制两种形态：
+    capture —— 刘海快捕小卡片，侧栏收起，只有编辑区
+    browse  —— 文件浏览态，左侧「快捷目录 + 文件列表」，右侧编辑区
+  形态由 Swift 侧面板尺寸决定，前端只跟随 data-mode 换布局。
+-->
+<div id="qn-app" data-mode="capture">
+
+  <aside id="qn-side">
+    <div class="qn-side-head">
+      <button class="qn-icon-btn" id="qn-collapse" title="收起文件列表">‹</button>
+      <span class="qn-dir-name" id="qn-dir-name">Quickmd</span>
+      <button class="qn-icon-btn" id="qn-pick-folder" title="选择工作文件夹">＋</button>
+    </div>
+
+    <div class="qn-search-wrap">
+      <input id="qn-search" type="text" placeholder="搜索文件" spellcheck="false" autocomplete="off">
+    </div>
+
+    <div class="qn-group" id="qn-group-shortcuts">
+      <div class="qn-group-head"><span>快捷目录</span></div>
+      <div class="qn-list" id="qn-shortcuts"></div>
+    </div>
+
+    <div class="qn-group qn-group-files">
+      <div class="qn-group-head">
+        <span>文件</span>
+        <button class="qn-mini-btn" id="qn-new-file" title="新建笔记">新</button>
+      </div>
+      <div class="qn-list qn-files" id="qn-files"></div>
+    </div>
+  </aside>
+
+  <main id="qn-main">
+    <div id="qn-scroll">
+      <div id="qn-editor"></div>
+    </div>
+    <div id="qn-status">
+      <span class="qn-dot" id="qn-dot"></span>
+      <span class="qn-save" id="qn-save">已保存</span>
+      <span class="qn-file" id="qn-file"></span>
+      <button class="qn-icon-btn" id="qn-expand" title="文件列表">文件</button>
+    </div>
+  </main>
+
+  <!-- 文件右键菜单（自建，不用系统菜单：需要出现在自定义面板内且位置跟随鼠标） -->
+  <div id="qn-menu" class="qn-menu" hidden></div>
 </div>
+
 <script src="editor-core.js"></script>
 <script src="editor.js"></script>
+<script src="workspace.js"></script>
 </body>
 </html>

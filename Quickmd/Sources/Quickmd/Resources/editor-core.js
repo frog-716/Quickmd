@@ -46,6 +46,13 @@
     t = t.replace(/(^|[^\w*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
     t = t.replace(/(^|[^\w_])_([^_\n]+)_/g, '$1<em>$2</em>');
     t = t.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    // 图片必须排在链接之前：否则 ![a](b) 会先被链接规则吃成 "!<a href=b>a</a>"。
+    // data-rel 保留原始相对路径，序列化时优先读它，避免把 file:// 绝对路径写回 md。
+    t = t.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function (m, alt, src) {
+      var safe = safeURL(src);
+      return '<img src="' + esc(safe) + '" alt="' + esc(alt)
+             + '" data-rel="' + esc(safe) + '">';
+    });
     t = t.replace(/\[([^\]]*)\]\(([^)\s]*)\)/g, function (m, label, url) {
       return '<a href="' + esc(safeURL(url)) + '" target="_blank" rel="noreferrer">' + label + '</a>';
     });
@@ -63,7 +70,7 @@
   // 任务项是两层标记（"- [ ] 待办"），所以要连续剥两次。
   function stripMarkers(md) {
     return String(md).split('\n').map(function (l) {
-      return l.replace(/^\s*(#{1,3}\s+|>\s?|[-*+]\s+|\d+\.\s+)/, '')   // 标题 / 引用 / 列表
+      return l.replace(/^\s*(#{1,6}\s+|>\s?|[-*+]\s+|\d+\.\s+)/, '')   // 标题 / 引用 / 列表
               .replace(/^\s*\[[ xX]\]\s+/, '')                      // 任务标记
               .replace(/^\s*>\s?/, '');
     }).join('\n');
@@ -98,6 +105,75 @@
     }).join('\n');
   }
 
+  /* ============================ 表格 ============================ */
+
+  // 拆一行表格：`| 甲 | 乙 |` -> ['甲','乙']。
+  // 用手写扫描而不是 split('|')，是为了支持单元格里的转义竖线 `\|`
+  // （正则后行断言 `(?<!\\)` 在老 WebKit 上不一定有，别赌）。
+  function splitTableRow(line) {
+    var s = String(line).trim();
+    if (s.charAt(0) === '|') s = s.slice(1);
+    if (s.charAt(s.length - 1) === '|' && s.charAt(s.length - 2) !== '\\') {
+      s = s.slice(0, -1);
+    }
+    var out = [], cur = '';
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (ch === '\\' && s.charAt(i + 1) === '|') { cur += '|'; i++; continue; }
+      if (ch === '|') { out.push(cur.trim()); cur = ''; continue; }
+      cur += ch;
+    }
+    out.push(cur.trim());
+    return out;
+  }
+
+  // 分隔行 `---` / `:---:` / `---:` -> 'left' / 'center' / 'right' / ''
+  function tableAlign(sepCell) {
+    var s = String(sepCell || '').trim();
+    var l = s.charAt(0) === ':';
+    var r = s.charAt(s.length - 1) === ':';
+    if (l && r) return 'center';
+    if (r) return 'right';
+    if (l) return 'left';
+    return '';
+  }
+
+  function isTableSeparator(line) {
+    var s = String(line).trim();
+    if (!/\|/.test(s)) return false;
+    // 只允许 - : | 空格，且至少有一个 -
+    return /^[\s|:-]+$/.test(s) && /-/.test(s);
+  }
+
+  function renderTable(md) {
+    var rows = String(md).split('\n').filter(function (l) { return /^\s*\|/.test(l); });
+    if (rows.length < 2) return '';
+    var head = splitTableRow(rows[0]);
+    var seps = splitTableRow(rows[1]);
+    var aligns = head.map(function (_, i) { return tableAlign(seps[i]); });
+    var colCount = head.length;
+
+    var html = '<table><thead><tr>';
+    for (var i = 0; i < colCount; i++) {
+      var al = aligns[i];
+      html += '<th' + (al ? ' style="text-align:' + al + '"' : '') + '>'
+            + inline(head[i] || '') + '</th>';
+    }
+    html += '</tr></thead><tbody>';
+    for (var r = 2; r < rows.length; r++) {
+      var cells = splitTableRow(rows[r]);
+      html += '<tr>';
+      for (var c = 0; c < colCount; c++) {
+        var a2 = aligns[c];
+        html += '<td' + (a2 ? ' style="text-align:' + a2 + '"' : '') + '>'
+              + inline(cells[c] || '') + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    return html;
+  }
+
   /* ============================ md -> blocks ============================ */
 
   function parse(src) {
@@ -123,8 +199,24 @@
       if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
         out.push({ type: 'hr', md: '---' }); i++; continue;
       }
-      // 标题
-      var h = line.match(/^(#{1,3})\s+(.*)$/);
+      // 表格：连续的 | 开头行，且第二行是分隔行才算表格。
+      // 不满足就当普通段落，避免把「随手打的 | 符号」误判成表格。
+      if (/^\s*\|/.test(line)) {
+        var rows = [];
+        while (i < lines.length && /^\s*\|/.test(lines[i])) { rows.push(lines[i]); i++; }
+        if (rows.length >= 2 && isTableSeparator(rows[1])) {
+          out.push({ type: 'table', md: rows.join('\n') });
+        } else {
+          rows.forEach(function (r) { out.push({ type: 'p', md: r }); });
+        }
+        continue;
+      }
+      // 独占一行的图片：单独成块，方便整块选中/删除（行内图片仍走 inline）
+      if (/^!\[[^\]]*\]\([^)]+\)$/.test(trimmed)) {
+        out.push({ type: 'image', md: trimmed }); i++; continue;
+      }
+      // 标题（1-6 级）
+      var h = line.match(/^(#{1,6})\s+(.*)$/);
       if (h) { out.push({ type: 'h' + h[1].length, md: line }); i++; continue; }
       // 引用（连续行合并为一块）
       if (/^\s*>\s?/.test(line)) {
@@ -204,12 +296,19 @@
     switch (b.type) {
       case 'hr':
         return '<hr>';
-      case 'h1':
-        return '<h1>' + inline(md.replace(/^#\s+/, '')) + '</h1>';
-      case 'h2':
-        return '<h2>' + inline(md.replace(/^##\s+/, '')) + '</h2>';
-      case 'h3':
-        return '<h3>' + inline(md.replace(/^###\s+/, '')) + '</h3>';
+      case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6': {
+        var level = b.type.charAt(1);
+        return '<h' + level + '>' + inline(md.replace(/^#+\s+/, '')) + '</h' + level + '>';
+      }
+      case 'image': {
+        var im = md.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
+        var alt = im ? im[1] : '';
+        var safe = safeURL(im ? im[2] : '');
+        return '<img src="' + esc(safe) + '" alt="' + esc(alt)
+             + '" data-rel="' + esc(safe) + '">';
+      }
+      case 'table':
+        return renderTable(md);
       case 'code': {
         var lines = md.split('\n');
         var body = lines.slice(1);
@@ -243,7 +342,9 @@
 
   var QN_CORE = { esc: esc, inline: inline, parse: parse, renderBlock: renderBlock,
                   stripMarkers: stripMarkers, safeURL: safeURL,
-                  toOrdered: toOrdered, toBullet: toBullet };
+                  toOrdered: toOrdered, toBullet: toBullet,
+                  renderTable: renderTable, splitTableRow: splitTableRow,
+                  isTableSeparator: isTableSeparator };
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = QN_CORE;

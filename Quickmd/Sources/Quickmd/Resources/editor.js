@@ -26,7 +26,7 @@
 
   var editorRoot = null;
   var saveTimer = null;
-  var state = { file: '' };
+  var state = { file: '', baseDir: '' };
 
   /* ---------- 光标偏移（文本维度，跨 <br> 计数） ---------- */
 
@@ -123,6 +123,11 @@
       else if (tag === 'code') out += '`' + inner + '`';
       else if (tag === 'del' || tag === 's' || tag === 'strike') out += '~~' + inner + '~~';
       else if (tag === 'a') out += '[' + inner + '](' + (n.getAttribute('href') || '') + ')';
+      else if (tag === 'img') {
+        // 行内图片：序列化用 data-rel（相对路径），保证存回去的 md 可移植
+        out += '![' + (n.getAttribute('alt') || '') + ']('
+             + (n.getAttribute('data-rel') || n.getAttribute('src') || '') + ')';
+      }
       else out += inner; // span / label / 其它容器：取其文本
     }
     return out;
@@ -136,6 +141,16 @@
       var text = code ? code.textContent : el.textContent;
       var lang = el.getAttribute('data-lang') || '';
       return '```' + lang + '\n' + text.replace(/\n+$/, '') + '\n```';
+    }
+    if (type === 'table') return tableMD(el);
+    if (type === 'image') {
+      var img = el.querySelector('img');
+      if (!img) return '';
+      // 优先 data-rel（原始相对路径）：src 在显示时被换成了 file:// 绝对路径，
+      // 写回 md 必须是相对路径，否则文件一搬走图片就断。
+      var rel = img.getAttribute('data-rel') || img.getAttribute('src') || '';
+      var alt = img.getAttribute('alt') || '';
+      return '![' + alt + '](' + rel + ')';
     }
     if (type === 'ul' || type === 'ol') {
       // 注意：块元素是 div，真正的列表容器是它的 ul/ol 子元素，
@@ -152,10 +167,39 @@
       return parts.join('\n').split('\n').map(function (l) { return '> ' + l; }).join('\n');
     }
     var text = serializeNode(el);
-    if (type === 'h1') return '# ' + text;
-    if (type === 'h2') return '## ' + text;
-    if (type === 'h3') return '### ' + text;
+    if (/^h[1-6]$/.test(type)) {
+      var lv = parseInt(type.charAt(1), 10);
+      return new Array(lv + 1).join('#') + ' ' + text;
+    }
     return text;
+  }
+
+  /// 表格 -> Markdown。表头行后面必须补一行分隔行，否则别的渲染器不认表格。
+  function tableMD(el) {
+    var table = el.querySelector('table');
+    if (!table) return '';
+    var rows = table.querySelectorAll('tr');
+    var lines = [];
+    for (var i = 0; i < rows.length; i++) {
+      var cells = rows[i].children;
+      var parts = [];
+      for (var j = 0; j < cells.length; j++) {
+        // 单元格内的换行降级为空格：Markdown 表格不支持单元格内多行
+        var t = cells[j].textContent.replace(/\n/g, ' ').replace(/\|/g, '\\|').trim();
+        parts.push(t);
+      }
+      lines.push('| ' + parts.join(' | ') + ' |');
+      if (i === 0) {
+        var seps = [];
+        for (var k = 0; k < cells.length; k++) {
+          var al = (cells[k].style.textAlign || '').toLowerCase();
+          seps.push(al === 'center' ? ':---:' : al === 'right' ? '---:'
+                   : al === 'left' ? ':---' : '---');
+        }
+        lines.push('| ' + seps.join(' | ') + ' |');
+      }
+    }
+    return lines.join('\n');
   }
 
   // 序列化列表（含嵌套），返回行数组。depth 控制缩进。
@@ -271,6 +315,46 @@
     if (fn) fn.textContent = state.file || '未命名';
   }
 
+  /// 保存状态：绿点 = 已落盘，橙点 = 有改动没写出去。
+  function setDirty(on) {
+    var st = document.getElementById('qn-status');
+    if (st) st.classList.toggle('is-dirty', !!on);
+    var sv = document.getElementById('qn-save');
+    if (sv) sv.textContent = on ? '编辑中' : '已保存';
+  }
+
+  /// 状态栏异常提示（外部删除等）。不传或传空则恢复常规保存态。
+  /// 注意：警告态只在「换了文件 / 主动清除」时消失，普通打字不会把它盖掉——
+  /// 盖掉了用户就以为在正常存盘，而实际上写盘已经被跳过。
+  function setNotice(text) {
+    var st = document.getElementById('qn-status');
+    var sv = document.getElementById('qn-save');
+    if (!text) {
+      if (st) st.classList.remove('is-warn');
+      setDirty(false);
+      return;
+    }
+    if (st) st.classList.add('is-warn');
+    if (sv) sv.textContent = text;
+  }
+
+  /// 把相对图片路径解析成 file:// 绝对路径。
+  ///
+  /// 为什么不直接渲染成绝对路径：md 文件里必须存相对路径（文件连同 assets
+  /// 一起搬走才不会断），只有显示时才需要绝对路径给 WebView 加载。
+  /// 两个用途分开，谁也别污染谁。
+  function resolveImages() {
+    if (!state.baseDir) return;
+    var imgs = editorRoot.querySelectorAll('img');
+    for (var i = 0; i < imgs.length; i++) {
+      var img = imgs[i];
+      var rel = img.getAttribute('data-rel');
+      if (!rel) continue;
+      if (/^(https?:|data:|file:|\/\/|\/)/i.test(rel)) continue;
+      img.setAttribute('src', 'file://' + encodeURI(state.baseDir + '/' + rel));
+    }
+  }
+
   /* ---------- 保存（防抖 + 立即通道） ---------- */
 
   function post(msg) {
@@ -281,6 +365,7 @@
 
   function scheduleSave(delay) {
     updateEditorState();
+    setDirty(true);
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(function () { flush(); }, delay == null ? 200 : delay);
   }
@@ -288,7 +373,11 @@
   function flush() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     var md = getMarkdown();
-    post({ type: 'save', md: md });
+    // 带上文件名：Swift 侧会核对它是不是当前文档。
+    // 防抖定时器和「切换文件」是两条独立的时间线，timer 有可能在切换之后才到，
+    // 没有这个字段就会把 A 的内容写进 B。
+    post({ type: 'save', md: md, file: state.file });
+    setDirty(false);
   }
 
   /* ---------- 「敲出前缀即变形」 ---------- */
@@ -307,9 +396,9 @@
       restoreCaret(el, off == null ? 0 : off - m[0].length);
       return true;
     }
-    // 标题
-    if ((m = text.match(/^(#{1,3})\s/))) {
-      var headRest = text.replace(/^#{1,3}\s+/, '');
+    // 标题（1-6 级都能靠前缀变形，一次敲完整前缀）
+    if ((m = text.match(/^(#{1,6})\s/))) {
+      var headRest = text.replace(/^#{1,6}\s+/, '');
       renderInto(el, 'h' + m[1].length, m[1] + ' ' + headRest);
       restoreCaret(el, off == null ? 0 : off - m[0].length);
       return true;
@@ -637,6 +726,79 @@
     scheduleSave();
   }
 
+  /* ---------- 表格单元格导航 ---------- */
+
+  function selectCell(cell) {
+    // contenteditable 容器里的子元素不能被 focus()，必须先把宿主块拿到焦点，
+    // 再用 Range 把光标落进单元格。直接 cell.focus() 是空操作。
+    var block = cell.closest ? cell.closest('.qn-block') : null;
+    if (block) block.focus();
+    var r = document.createRange();
+    r.selectNodeContents(cell);
+    r.collapse(true);
+    var s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  }
+
+  /// 光标所在的表格单元格。
+  ///
+  /// 不能用 e.target：contenteditable 里键盘事件的 target 是编辑宿主（.qn-block），
+  /// 不是里面的 td——直接 closest('td') 永远是 null，表格导航会静默失效。
+  /// 必须从 Selection 的锚点节点往上找。
+  function cellAtCaret() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    var n = sel.anchorNode;
+    if (!n) return null;
+    if (n.nodeType === 3) n = n.parentNode;
+    return (n && n.closest) ? n.closest('td, th') : null;
+  }
+
+  /// 表格里 Enter / Tab 不拆块：Tab 前后跳格，Enter 下移一行（末尾自动加行）。
+  /// 不做「Enter 换行」——Markdown 表格不支持单元格内多行，
+  /// 允许换行会让存盘内容丢格式。
+  function handleTableNav(e, cell) {
+    e.preventDefault();
+    e.stopPropagation();
+    var table = cell.closest('table');
+    if (!table) return;
+    var row = cell.parentNode;
+    var rows = Array.prototype.slice.call(table.querySelectorAll('tr'));
+    var rowIdx = rows.indexOf(row);
+    var colIdx = Array.prototype.indexOf.call(row.children, cell);
+
+    if (e.key === 'Tab') {
+      var flat = [];
+      for (var r = 0; r < rows.length; r++) {
+        var cs = rows[r].children;
+        for (var c = 0; c < cs.length; c++) flat.push(cs[c]);
+      }
+      var idx = flat.indexOf(cell);
+      var next = flat[idx + (e.shiftKey ? -1 : 1)];
+      if (next) selectCell(next);
+      return;
+    }
+
+    // Enter
+    var nextRow = rows[rowIdx + 1];
+    if (!nextRow) {
+      var cols = row.children.length;
+      var tr = document.createElement('tr');
+      for (var i = 0; i < cols; i++) {
+        var td = document.createElement('td');
+        td.setAttribute('contenteditable', 'true');
+        tr.appendChild(td);
+      }
+      (table.querySelector('tbody') || table).appendChild(tr);
+      selectCell(tr.children[Math.min(colIdx, cols - 1)]);
+      scheduleSave();
+      return;
+    }
+    var target = nextRow.children[Math.min(colIdx, nextRow.children.length - 1)];
+    if (target) selectCell(target);
+  }
+
   /* ---------- 事件绑定 ---------- */
 
   function bindEvents() {
@@ -652,6 +814,13 @@
     editorRoot.addEventListener('keydown', function (e) {
       var mod = e.metaKey || e.ctrlKey;
       var k = e.key.toLowerCase();
+
+      // 表格单元格优先：Enter / Tab 在格内移动，不触发拆块
+      var cell = cellAtCaret();
+      if (cell && (e.key === 'Enter' || e.key === 'Tab')) {
+        handleTableNav(e, cell);
+        return;
+      }
 
       if (mod && !e.altKey) {
         if (k === 'b') { e.preventDefault(); execInline('bold'); return; }
@@ -699,6 +868,46 @@
         else focusBlock(createAndAppend('p', ''));
       }
     });
+
+    // 粘贴图片：交给 Swift 落盘到文档旁的 assets/，回来再插成图片块。
+    // 不内联 base64——md 是纯文本，内联会让文件膨胀几十倍且进不了 Git。
+    editorRoot.addEventListener('paste', function (e) {
+      var cd = e.clipboardData;
+      if (!cd || !cd.items) return;
+      for (var i = 0; i < cd.items.length; i++) {
+        var it = cd.items[i];
+        if (it.kind !== 'file' || String(it.type).indexOf('image/') !== 0) continue;
+        e.preventDefault();
+        var f = it.getAsFile();
+        if (!f) return;
+        sendImageFile(f);
+        return;
+      }
+    });
+
+    // 拖图进来：同一个落盘通道
+    document.addEventListener('dragover', function (e) { e.preventDefault(); });
+    document.addEventListener('drop', function (e) {
+      var dt = e.dataTransfer;
+      if (!dt || !dt.files || !dt.files.length) return;
+      var f = dt.files[0];
+      if (String(f.type).indexOf('image/') !== 0) return;
+      e.preventDefault();
+      sendImageFile(f);
+    });
+  }
+
+  function sendImageFile(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var res = String(reader.result || '');
+      var comma = res.indexOf(',');
+      if (comma < 0) return;
+      var ext = (String(file.type).split('/')[1] || 'png').toLowerCase()
+        .replace('jpeg', 'jpg').replace('svg+xml', 'svg');
+      post({ type: 'saveImage', name: 'pasted.' + ext, data: res.slice(comma + 1) });
+    };
+    reader.readAsDataURL(file);
   }
 
   function createAndAppend(type, md) {
@@ -709,13 +918,19 @@
 
   /* ---------- 对外接口 ---------- */
 
-  function load(md, file) {
+  function load(md, file, baseDir) {
+    // 清掉挂起的保存定时器。切文件时必须做：否则 200ms 后那次 flush
+    // 会把「上一份文档的内容」写给「刚切换到的这个文件」（串档）。
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     state.file = file || '';
+    state.baseDir = baseDir || '';
     editorRoot.innerHTML = '';
     var blocks = QN_CORE.parse(md || '');
     if (!blocks.length) blocks = [{ type: 'p', md: '' }];
     blocks.forEach(function (b) { editorRoot.appendChild(createBlockEl(b.type, b.md)); });
+    resolveImages();
     updateEditorState();
+    setNotice('');            // 换文件即清掉上一份的异常提示
   }
 
   function init() {
@@ -726,11 +941,27 @@
     post({ type: 'ready' });
   }
 
+  /// Swift 把图片落盘后回调这里：在当前块后面插入图片块，并补一个空段落接着写。
+  function insertImage(rel) {
+    var cur = activeBlock();
+    var el = createBlockEl('image', '![](' + rel + ')');
+    if (cur && cur.parentNode) cur.parentNode.insertBefore(el, cur.nextSibling);
+    else editorRoot.appendChild(el);
+    resolveImages();
+    var p = createBlockEl('p', '');
+    el.parentNode.insertBefore(p, el.nextSibling);
+    focusBlock(p, 0);
+    scheduleSave();
+    flush();
+  }
+
   root.QN = {
     load: load,
     getMarkdown: getMarkdown,
     flush: flush,
     init: init,
+    insertImage: insertImage,
+    setNotice: setNotice,
     core: QN_CORE
   };
 
